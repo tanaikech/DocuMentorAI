@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DocuMentor AI</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-card: rgba(22, 30, 49, 0.85);
+      --bg-code: #060911;
+      --border-color: rgba(99, 102, 241, 0.25);
+      --accent-indigo: #6366f1;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background-color: var(--bg-primary);
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 90% 90%, rgba(6, 182, 212, 0.12) 0%, transparent 45%);
+      color: var(--text-main);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 13px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.1));
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin-bottom: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      padding: 2px 4px;
+      border-radius: var(--radius-sm);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .brand:hover {
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateY(-1px);
+    }
+    .brand-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 15px;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+    }
+    .brand-title {
+      font-size: 14px; font-weight: 700; letter-spacing: 0.3px;
+      background: linear-gradient(90deg, #fff, #cbd5e1);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .brand-info-dot {
+      font-size: 10px;
+      color: var(--accent-cyan);
+      -webkit-text-fill-color: var(--accent-cyan);
+      opacity: 0.85;
+    }
+    .brand-sub { font-size: 9.5px; color: var(--accent-cyan); display: block; }
+    .header-right { display: flex; align-items: center; gap: 6px; }
+
+    .lang-switch {
+      display: inline-flex; background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 6px; overflow: hidden;
+    }
+    .lang-btn {
+      background: transparent; border: none; color: var(--text-muted);
+      font-size: 10px; font-weight: 700; padding: 3px 7px; cursor: pointer; transition: all 0.15s;
+    }
+    .lang-btn.active { background: var(--accent-indigo); color: #fff; }
+
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      border-radius: var(--radius-md); padding: 12px; margin-bottom: 12px;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px; font-weight: 600; font-size: 12px; color: #e2e8f0;
+    }
+
+    label.field-label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+
+    input[type="password"], input[type="text"], select, textarea {
+      width: 100%; background: rgba(11, 15, 25, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.25); border-radius: var(--radius-sm);
+      color: var(--text-main); padding: 8px 10px; font-size: 12px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent-indigo); box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+    }
+    textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+
+    .api-configured-box {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: var(--radius-sm); padding: 7px 10px; font-size: 11px; color: #6ee7b7;
+    }
+
+    .btn-link {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 11px; cursor: pointer; text-decoration: underline;
+    }
+    .btn-link:hover { color: #fff; }
+
+    /* Toggle Switch for Proofreading Scope */
+    .scope-toggle-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .scope-toggle-box.selection-mode {
+      border-color: rgba(6, 182, 212, 0.55);
+      background: rgba(8, 30, 48, 0.75);
+    }
+    .scope-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .scope-title {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .scope-desc {
+      font-size: 10px;
+      color: var(--accent-cyan);
+      line-height: 1.35;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 21px;
+      flex-shrink: 0;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(148, 163, 184, 0.3);
+      transition: 0.25s;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 15px;
+      width: 15px;
+      left: 2px;
+      bottom: 2px;
+      background-color: #f8fafc;
+      transition: 0.25s;
+      border-radius: 50%;
+    }
+    .switch input:checked + .slider {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      border-color: var(--accent-cyan);
+    }
+    .switch input:checked + .slider:before {
+      transform: translateX(17px);
+    }
+
+    .chip-group { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; margin-bottom: 10px; }
+    .chip {
+      font-size: 10px; padding: 3px 8px; border-radius: 999px;
+      background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #c7d2fe; cursor: pointer; transition: all 0.15s;
+    }
+    .chip:hover { background: rgba(99, 102, 241, 0.35); color: #fff; }
+
+    .btn {
+      width: 100%; padding: 9px 11px; border-radius: var(--radius-sm); border: none;
+      font-weight: 600; font-size: 12px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      color: #fff; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px); box-shadow: 0 6px 18px rgba(6, 182, 212, 0.5);
+    }
+    .btn-secondary {
+      background: rgba(30, 41, 59, 0.9); color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.3); margin-top: 6px;
+    }
+    .btn-secondary:hover:not(:disabled) { background: rgba(51, 65, 85, 0.9); border-color: var(--accent-cyan); }
+
+    .btn-learning-existing {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(6, 182, 212, 0.18));
+      border: 1px solid rgba(16, 185, 129, 0.55);
+      color: #6ee7b7;
+      margin-top: 6px;
+      font-size: 11.5px;
+      padding: 8.5px 10px;
+    }
+    .btn-learning-existing:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.36), rgba(6, 182, 212, 0.3));
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28);
+    }
+
+    .btn-open-learning-dialog {
+      display: none;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(6, 182, 212, 0.18));
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: #6ee7b7;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      font-size: 11.5px;
+    }
+    .btn-open-learning-dialog:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(6, 182, 212, 0.28));
+      color: #fff;
+    }
+
+    .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    .btn-accept-all {
+      background: rgba(16, 185, 129, 0.15); color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px; padding: 8px 6px;
+    }
+    .btn-accept-all:hover:not(:disabled) { background: rgba(16, 185, 129, 0.28); color: #fff; }
+    .btn-clear-all {
+      background: rgba(244, 63, 94, 0.15); color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.4); font-size: 11px; padding: 8px 6px;
+    }
+    .btn-clear-all:hover:not(:disabled) { background: rgba(244, 63, 94, 0.28); color: #fff; }
+    .btn-clear-comments {
+      background: rgba(245, 158, 11, 0.14); color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.4); font-size: 11px; padding: 8px 6px; margin-top: 6px;
+    }
+    .btn-clear-comments:hover:not(:disabled) { background: rgba(245, 158, 11, 0.28); color: #fff; }
+    .btn-sm { width: auto; padding: 6px 10px; font-size: 11px; }
+
+    .empty-doc-banner {
+      display: none; background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.4); border-radius: var(--radius-sm);
+      padding: 9px 10px; margin-bottom: 10px; font-size: 11px; color: #fde68a;
+    }
+    .toast-error {
+      display: none; background: rgba(244, 63, 94, 0.15); border: 1px solid var(--accent-rose);
+      color: #fecdd3; padding: 8px 10px; border-radius: var(--radius-sm);
+      font-size: 11px; margin-bottom: 10px; word-break: break-word;
+    }
+    .toast-info {
+      display: none; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #d1fae5; padding: 8px 10px; border-radius: var(--radius-sm);
+      font-size: 11px; margin-bottom: 10px; word-break: break-word;
+    }
+
+    .pipeline-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--text-muted); margin: 8px 0 8px 2px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .step-card {
+      background: var(--bg-card); border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: var(--radius-md); margin-bottom: 10px; overflow: hidden; transition: all 0.25s ease;
+    }
+    .step-card.active { border-color: var(--accent-cyan); box-shadow: 0 0 15px rgba(6, 182, 212, 0.2); }
+    .step-card.completed { border-color: rgba(16, 185, 129, 0.45); }
+    .step-card.error { border-color: var(--accent-rose); }
+
+    .step-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; cursor: pointer; user-select: none; background: rgba(15, 23, 42, 0.4);
+    }
+    .step-header:hover { background: rgba(30, 41, 59, 0.5); }
+    .step-left { display: flex; align-items: center; gap: 9px; }
+
+    .step-badge {
+      width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(148, 163, 184, 0.2); color: var(--text-muted); flex-shrink: 0;
+    }
+    .step-card.active .step-badge { background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); }
+    .step-card.completed .step-badge { background: var(--accent-emerald); color: #052e16; }
+    .step-card.error .step-badge { background: var(--accent-rose); color: #fff; }
+
+    .step-name { font-size: 12px; font-weight: 600; }
+    .step-state-label {
+      font-size: 10px; color: var(--text-muted); padding: 2px 7px; border-radius: 99px;
+      background: rgba(255, 255, 255, 0.05); display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+    }
+    .step-body {
+      display: none; padding: 10px 12px; border-top: 1px solid rgba(255, 255, 255, 0.06); font-size: 11.5px;
+    }
+    .step-card.open .step-body { display: block; }
+
+    .spinner {
+      width: 13px; height: 13px; border: 2px solid rgba(6, 182, 212, 0.25);
+      border-top-color: var(--accent-cyan); border-radius: 50%;
+      animation: spin 0.75s linear infinite; display: inline-block;
+    }
+    .loading-row {
+      display: flex; align-items: center; gap: 8px; color: var(--accent-cyan); font-size: 11.5px; padding: 4px 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .scope-badge-banner {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(99, 102, 241, 0.14); border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 6px; padding: 5px 8px; margin-bottom: 8px; font-size: 10.5px; color: #c7d2fe;
+    }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px; }
+    .metric-box {
+      background: rgba(11, 15, 25, 0.7); border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: var(--radius-sm); padding: 5px 4px; text-align: center;
+    }
+    .metric-val { font-size: 13px; font-weight: 700; color: var(--accent-cyan); }
+    .metric-lbl { font-size: 9px; color: var(--text-muted); }
+
+    .suggestion-item {
+      background: rgba(11, 15, 25, 0.75); border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 8px;
+    }
+    .suggestion-item.visual-card {
+      border-color: rgba(6, 182, 212, 0.4); background: rgba(8, 25, 38, 0.75);
+    }
+    .sug-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .cat-tag {
+      font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
+      background: rgba(99, 102, 241, 0.2); color: #a5b4fc;
+    }
+    .cat-tag.visual-tag { background: rgba(6, 182, 212, 0.2); color: #67e8f9; }
+    .diff-del {
+      background: rgba(244, 63, 94, 0.18); color: #fda4af; text-decoration: line-through;
+      padding: 2px 5px; border-radius: 4px; display: inline; word-break: break-all;
+    }
+    .diff-ins {
+      background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-weight: 600;
+      padding: 2px 5px; border-radius: 4px; display: inline; word-break: break-all;
+    }
+    .sug-explain {
+      margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(148, 163, 184, 0.2);
+      font-size: 11px; color: #cbd5e1;
+    }
+
+    pre.json-box {
+      background: var(--bg-code); border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: var(--radius-sm); padding: 8px;
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 10.5px; color: #38bdf8;
+      max-height: 150px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+    }
+
+    .app-footer {
+      margin-top: auto; padding-top: 12px; text-align: center;
+      font-size: 10px; color: var(--text-muted); opacity: 0.8;
+    }
+    .footer-brand-link {
+      cursor: pointer;
+      text-decoration: underline;
+      transition: color 0.15s;
+    }
+    .footer-brand-link:hover {
+      color: var(--accent-cyan);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="app-header">
+    <div id="brandHeaderBtn" class="brand" onclick="openAboutDialog()" title="About DocuMentor AI">
+      <div class="brand-icon">✦</div>
+      <div>
+        <span class="brand-title">DocuMentor AI <span class="brand-info-dot">ⓘ</span></span>
+        <span id="brandSub" class="brand-sub">v1.0.0 • AI Proofreading Coach</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="lang-switch">
+        <button id="langBtnEn" class="lang-btn active" onclick="setLanguage('en')">EN</button>
+        <button id="langBtnJa" class="lang-btn" onclick="setLanguage('ja')">JA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert & Info Banners -->
+  <div id="errorBox" class="toast-error"></div>
+  <div id="infoBox" class="toast-info"></div>
+
+  <!-- Settings Card -->
+  <div class="card">
+    <div class="card-header">
+      <span id="lblSettingsTitle">⚙️ AI Engine & API Settings</span>
+    </div>
+
+    <div id="apiKeyInputContainer" style="margin-bottom: 10px;">
+      <label id="lblApiKey" class="field-label">Gemini API Key</label>
+      <div style="display: flex; gap: 6px;">
+        <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
+        <button id="btnSaveKey" class="btn btn-primary btn-sm" onclick="handleSaveApiKey()">Save</button>
+      </div>
+    </div>
+
+    <div id="apiKeyConfiguredContainer" style="display: none; margin-bottom: 10px;">
+      <div class="api-configured-box">
+        <span id="lblApiKeyConfigured">🔒 API Key Configured (Saved)</span>
+        <button id="btnResetKey" class="btn-link" onclick="handleResetApiKey()">Reset</button>
+      </div>
+    </div>
+
+    <div>
+      <label id="lblModelSelect" class="field-label">Gemini Model</label>
+      <select id="modelSelect" onchange="handleModelChange()">
+        <option id="optModelFlash" value="gemini-3.8-flash" selected>gemini-3.8-flash (Default / Fast)</option>
+        <option id="optModelArgon" value="gemini-4-argon">gemini-4-argon (High Precision)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Prompt & Action Card -->
+  <div class="card">
+    <div class="card-header">
+      <span id="lblPromptSection">✍️ Proofreading Scope & Controls</span>
+    </div>
+
+    <!-- Toggle Switch: Entire Active Tab (Default OFF) vs Selection Only (ON) -->
+    <div id="scopeToggleBox" class="scope-toggle-box">
+      <div class="scope-info">
+        <span id="lblScopeToggleTitle" class="scope-title">Proofread Selection Only</span>
+        <span id="lblScopeToggleDesc" class="scope-desc">OFF (Default): Entire Active Tab (Text, Tables & Figures)</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="selectionOnlyToggle" onchange="handleScopeToggleChange()" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="emptyDocBanner" class="empty-doc-banner"></div>
+
+    <label id="lblCustomPrompt" class="field-label">Additional Proofreading Instructions (or Topic for Empty Document)</label>
+    <textarea id="customPrompt"></textarea>
+
+    <div id="chipGroup" class="chip-group"></div>
+
+    <button id="btnRunProofread" class="btn btn-primary" onclick="runFullPipeline()">
+      <span id="lblBtnRun">🚀 Run Proofreading (Suggest & Coach)</span>
+    </button>
+
+    <button id="btnGenerateLearningFromExisting" class="btn btn-learning-existing" onclick="runLearningSummaryFromExisting()">
+      <span id="lblBtnGenerateLearningFromExisting">🎓 Generate Learning Summary from Suggestions & Comments</span>
+    </button>
+
+    <button id="btnGenerateInitial" class="btn btn-secondary" onclick="runGenerateInitialArticle()">
+      <span id="lblBtnGenerate">📝 Generate Initial Text from Prompt</span>
+    </button>
+
+    <div class="action-row">
+      <button id="btnAcceptAll" class="btn btn-accept-all" onclick="handleAcceptAll()">
+        <span id="lblBtnAcceptAll">✅ Accept All Suggestions</span>
+      </button>
+      <button id="btnClearAll" class="btn btn-clear-all" onclick="handleClearAll()">
+        <span id="lblBtnClearAll">🧹 Clear All Suggestions</span>
+      </button>
+    </div>
+
+    <button id="btnClearAllComments" class="btn btn-clear-comments" onclick="handleClearAllComments()">
+      <span id="lblBtnClearAllComments">🗑️ Clear All Comments</span>
+    </button>
+  </div>
+
+  <!-- Quick Re-open Button for the Learning Summary Custom Dialog -->
+  <button id="btnOpenLearningDialog" class="btn btn-open-learning-dialog" onclick="reopenLearningSummaryDialog()">
+    <span id="lblBtnOpenLearningDialog">🎓 View Writing Coach & Learning Summary Dialog</span>
+  </button>
+
+  <!-- Process Dashboard -->
+  <div class="pipeline-title">
+    <span id="lblDashboardTitle">📊 Process Dashboard</span>
+    <button id="btnExpandAll" class="btn-link" onclick="expandAllSteps()">Expand All</button>
+  </div>
+
+  <!-- STEP 1 -->
+  <div id="stepCard1" class="step-card">
+    <div class="step-header" onclick="toggleStep(1)">
+      <div class="step-left">
+        <div id="stepBadge1" class="step-badge">1</div>
+        <span id="stepTitle1" class="step-name">Fetch Text, Tables & Figures</span>
+      </div>
+      <span id="stepState1" class="step-state-label">Waiting</span>
+    </div>
+    <div id="stepBody1" class="step-body"></div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div id="stepCard2" class="step-card">
+    <div class="step-header" onclick="toggleStep(2)">
+      <div class="step-left">
+        <div id="stepBadge2" class="step-badge">2</div>
+        <span id="stepTitle2" class="step-name">Generate AI Proofreading & Coaching</span>
+      </div>
+      <span id="stepState2" class="step-state-label">Waiting</span>
+    </div>
+    <div id="stepBody2" class="step-body"></div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div id="stepCard3" class="step-card">
+    <div class="step-header" onclick="toggleStep(3)">
+      <div class="step-left">
+        <div id="stepBadge3" class="step-badge">3</div>
+        <span id="stepTitle3" class="step-name">Build Suggestion Request Body</span>
+      </div>
+      <span id="stepState3" class="step-state-label">Waiting</span>
+    </div>
+    <div id="stepBody3" class="step-body"></div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div id="stepCard4" class="step-card">
+    <div class="step-header" onclick="toggleStep(4)">
+      <div class="step-left">
+        <div id="stepBadge4" class="step-badge">4</div>
+        <span id="stepTitle4" class="step-name">Apply Suggestions & Comments</span>
+      </div>
+      <span id="stepState4" class="step-state-label">Waiting</span>
+    </div>
+    <div id="stepBody4" class="step-body"></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="app-footer">
+    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.0 • Created by Kanshi Tanaike
+  </div>
+
+  <script>
+    let currentLang = 'en';
+    let isDocEmptyState = false;
+    let latestLearningSummaryPayload = null;
+
+    const I18N = {
+      en: {
+        brandSub: 'v1.0.0 • AI Proofreading Coach',
+        brandTooltip: 'Click to view Developer, GitHub Repository & Version info',
+        settingsTitle: '⚙️ AI Engine & API Settings',
+        apiKeyLabel: 'Gemini API Key',
+        saveBtn: 'Save',
+        apiKeyConfigured: '🔒 API Key Configured (Saved)',
+        resetBtn: 'Reset',
+        modelLabel: 'Gemini Model',
+        modelFlash: 'gemini-3.8-flash (Default / Fast)',
+        modelArgon: 'gemini-4-argon (High Precision)',
+        promptSection: '✍️ Proofreading Scope & Controls',
+        scopeToggleTitle: '🎯 Proofread Selection Only',
+        scopeDescFullTab: 'OFF (Default): Proofreads the entire active tab (text, tables & figures).',
+        scopeDescSelection: 'ON: Proofreads only your selected text, tables, or figures.',
+        emptyBanner: '📄 <strong>The active tab is currently empty.</strong><br>Enter a topic in the prompt field below and click "Generate Initial Text" or "Run Proofreading".',
+        customPromptLabel: 'Additional Proofreading Instructions (or Topic for Empty Document)',
+        customPromptPlaceholder: 'e.g., Refine the text, tables, and charts for a professional business report.',
+        chips: [
+          { label: '#Concise & Logical', text: 'Make the logical flow clearer and eliminate redundant expressions.' },
+          { label: '#Business Tone', text: 'Refine into a polite, professional business tone.' },
+          { label: '#Tables & Charts', text: 'Check data consistency across tables, charts, and body text.' },
+          { label: '#Grammar & Flow', text: 'Focus on fixing grammatical awkwardness and subject-verb agreement.' }
+        ],
+        btnRun: '🚀 Run Proofreading (Suggest & Coach)',
+        btnGenerateLearningFromExisting: '🎓 Generate Learning Summary from Suggestions & Comments',
+        btnGenerate: '📝 Generate Initial Text from Prompt',
+        btnAcceptAll: '✅ Accept All Suggestions',
+        btnClearAll: '🧹 Clear All Suggestions',
+        btnClearAllComments: '🗑️ Clear All Comments',
+        btnOpenLearningDialog: '📖 Re-open Latest Learning Summary Dialog',
+        dashboardTitle: '📊 Process Dashboard',
+        expandAll: 'Expand All',
+        stepTitles: {
+          1: 'Fetch Text, Tables & Figures',
+          2: 'Generate AI Proofreading & Coaching',
+          3: 'Build Suggestion Request Body',
+          4: 'Apply Suggestions & Comments'
+        },
+        stepDesc: {
+          1: 'Fetches active tab text, structured tables, figures/charts, and existing suggestions/comments.',
+          2: 'Analyzes the manuscript and target elements to generate suggestions and author learning advice.',
+          3: 'Builds the batchUpdate payload for inline suggestions and anchored comments.',
+          4: 'Applies suggestions and learning comments to the Google Doc.'
+        },
+        states: {
+          waiting: 'Waiting',
+          running: 'Running...',
+          reloading: 'Reloading...',
+          completed: 'Completed',
+          error: 'Error',
+          skipped: 'Skipped'
+        },
+        step1Metrics: {
+          scopeFullTab: tabTitle => `📑 Scope: Entire Active Tab (${tabTitle || 'Default Tab'})`,
+          scopeSelection: tabTitle => `🎯 Scope: Selected Content Only in "${tabTitle || 'Active Tab'}"`,
+          chars: 'Target Chars',
+          existing: 'Existing',
+          tables: 'Tables',
+          visuals: 'Figures',
+          existingAlert: (sugCount, comCount) => `💡 <strong>Detected ${sugCount} existing suggestion(s) and ${comCount} comment thread(s).</strong><br>You can generate a Learning Summary from them or run additional AI proofreading.`,
+          selectedPreviewLabel: 'Selected Target Text',
+          contextLabel: 'Full Active Tab Context (Text, Tables & Visual Markers)'
+        },
+        step2Labels: {
+          overall: '📋 Overall Evaluation',
+          existingNote: '🔄 Consideration of Existing Suggestions:',
+          existingAnalysisSection: '🔍 Key Lessons from Existing Suggestions & Comments',
+          visualSection: '💬 Figure/Chart & Table Review Comments (Created as Comments)',
+          reason: '💡 Reason:',
+          learning: '🎓 Learning Point:',
+          noSuggestions: 'No revisions needed.',
+          skippedForAction: 'Skipped (Direct Suggestion/Comment Management Action)',
+          skippedForLearningOnly: 'Skipped (Learning Summary Generation Mode — Document Unmodified)'
+        },
+        step3CompletedMsg: '✅ Completed building the suggestion and comment request payloads.',
+        step4SuccessMsg: count => `✅ <strong>${count} proofreading suggestions and learning comments have been applied to the document!</strong><br>The "🎓 Writing Coach & Learning Summary" dialog has been opened, and you can also review individual suggestion cards and figure/table comments on the right side of Google Docs.`,
+        existingLearningSuccessMsg: (sugCount, comCount) => `🎓 <strong>Generated "Writing Coach & Learning Summary" from ${sugCount} existing suggestion(s) and ${comCount} comment thread(s)!</strong><br>The summary modal dialog has been opened so you can learn from existing reviewer suggestions and comments.`,
+        initialGenSuccess: count => `✨ <strong>Generated new text (${count} chars) in the active tab!</strong><br>Click <strong>"🚀 Run Proofreading"</strong> above to proofread this text.`,
+        errors: {
+          enterApiKey: 'Please enter an API key.',
+          enterPrompt: 'Please enter a topic or instruction in the Custom Prompt field.'
+        }
+      },
+      ja: {
+        brandSub: 'v1.0.0 • AI推敲＆学習コーチ',
+        brandTooltip: 'クリックして開発者・GitHubリポジトリ・バージョン情報を表示',
+        settingsTitle: '⚙️ AI エンジン & API設定',
+        apiKeyLabel: 'Gemini API キー',
+        saveBtn: '保存',
+        apiKeyConfigured: '🔒 APIキー入力済み (PropertiesService保存)',
+        resetBtn: '再設定',
+        modelLabel: '使用モデル',
+        modelFlash: 'gemini-3.8-flash (デフォルト・高速推敲)',
+        modelArgon: 'gemini-4-argon (高精度・深層推敲)',
+        promptSection: '✍️ 推敲範囲 & 実行コントロール',
+        scopeToggleTitle: '🎯 選択した部分のみを推敲',
+        scopeDescFullTab: 'OFF (デフォルト): アクティブなタブ全体（文章・表・図）を推敲',
+        scopeDescSelection: 'ON: 選択中の部分（文章・表・図など）のみを推敲',
+        emptyBanner: '📄 <strong>現在アクティブなタブに文章がありません。</strong><br>下のプロンプト欄に作成したい文章のテーマを入力し、「文章を新規作成」または「推敲を実行」を押してください。',
+        customPromptLabel: '追加の推敲指示（白紙の場合は作成したい文章の内容）',
+        customPromptPlaceholder: '例: 本文や表・チャートの整合性を確認し、ビジネス文書として自然な表現に推敲してください。',
+        chips: [
+          { label: '#簡潔・論理的', text: '論理展開を明確にし、冗長な表現を簡潔にしてください。' },
+          { label: '#ビジネス敬語', text: 'ビジネスシーンにふさわしい丁寧で正確な敬語表現に修正してください。' },
+          { label: '#表・図チャートの整合性', text: '本文と表・図・チャートのデータや表現の整合性を重点的に確認してください。' },
+          { label: '#文法・助詞チェック', text: '主語と述語のねじれや助詞の誤りを重点的にチェックしてください。' }
+        ],
+        btnRun: '🚀 推敲を実行（提案＆学習コメント生成）',
+        btnGenerateLearningFromExisting: '🎓 既存の提案・コメントから学習まとめを生成',
+        btnGenerate: '📝 カスタムプロンプトから文章を新規作成',
+        btnAcceptAll: '✅ 全ての提案を承認',
+        btnClearAll: '🧹 全ての提案をクリア',
+        btnClearAllComments: '🗑️ 全てのコメントを削除',
+        btnOpenLearningDialog: '📖 直前の学習アドバイスまとめを再表示',
+        dashboardTitle: '📊 プロセス・ダッシュボード',
+        expandAll: 'すべて展開',
+        stepTitles: {
+          1: '文章・表・図チャートの取得',
+          2: '生成AIによる推敲案・学習解説の作成',
+          3: '提案用リクエストボディの構築',
+          4: 'Google Docsへの提案 & コメント適用'
+        },
+        stepDesc: {
+          1: 'アクティブなタブ（または選択範囲）の文章、表、図・チャート、既存の提案・コメントを解析します。',
+          2: '原稿全体と推敲対象（または既存の提案・コメント）を理解し、修正提案と学習アドバイスを生成します。',
+          3: '提案モードおよびコメント用のリクエストを構築します。',
+          4: 'ドキュメント上に修正提案と学習解説コメント（図・表コメント含む）を反映します。'
+        },
+        states: {
+          waiting: '待機中',
+          running: '実行中...',
+          reloading: '再読込中...',
+          completed: '完了',
+          error: 'エラー',
+          skipped: 'スキップ'
+        },
+        step1Metrics: {
+          scopeFullTab: tabTitle => `📑 対象範囲: アクティブなタブ全体 (${tabTitle || 'メインタブ'})`,
+          scopeSelection: tabTitle => `🎯 対象範囲: 選択した部分のみ (${tabTitle || 'アクティブタブ'})`,
+          chars: '対象文字数',
+          existing: '既存提案/コメント',
+          tables: '対象表(Table)',
+          visuals: '対象図・チャート',
+          existingAlert: (sugCount, comCount) => `💡 <strong>既存の修正提案 (${sugCount}件) とコメント (${comCount}件) を検出しました。</strong><br>これらから学習アドバイスまとめを生成するか、配慮した上で追加の推敲を行えます。`,
+          selectedPreviewLabel: '選択された推敲対象テキスト',
+          contextLabel: '取得したタブ全体のコンテキスト (本文・表・図チャート注釈)'
+        },
+        step2Labels: {
+          overall: '📋 全体講評',
+          existingNote: '🔄 既存提案への配慮:',
+          existingAnalysisSection: '🔍 既存の提案・コメントから抽出された主な学び',
+          visualSection: '💬 図・チャート・表への推敲コメント（コメントとして作成）',
+          reason: '💡 理由:',
+          learning: '🎓 学習:',
+          noSuggestions: '修正提案はありません。',
+          skippedForAction: 'スキップ（提案・コメントの一括管理処理のため）',
+          skippedForLearningOnly: 'スキップ（既存の提案・コメントからの学習まとめ生成モードのためドキュメント変更なし）'
+        },
+        step3CompletedMsg: '✅ リクエストボディの構築が完了しました。',
+        step4SuccessMsg: count => `✅ <strong>${count} 件の推敲提案と学習コメントをドキュメントに反映しました！</strong><br>カスタムダイアログに「🎓 執筆者への学習アドバイスまとめ」を表示しました。ドキュメント右側の提案カードおよび図・表へのコメントからも各修正理由を確認できます。`,
+        existingLearningSuccessMsg: (sugCount, comCount) => `🎓 <strong>既存の提案 (${sugCount}件) とコメント (${comCount}件) から「執筆者への学習アドバイスまとめ」を生成しました！</strong><br>カスタムダイアログに他のユーザーやAIからの指摘を踏まえた学習まとめを表示しました。`,
+        initialGenSuccess: count => `✨ <strong>アクティブなタブ上に新しい文章（${count}文字）を作成しました！</strong><br>続けて上の <strong>「🚀 推敲を実行」</strong> ボタンを押すと、この文章に対してAI推敲の提案を行います。`,
+        errors: {
+          enterApiKey: 'APIキーを入力してください。',
+          enterPrompt: 'カスタムプロンプト欄に作成したい文章のテーマや内容を入力してください。'
+        }
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      applyLanguageTexts();
+      resetAllSteps();
+
+      google.script.run
+        .withSuccessHandler(cfg => {
+          currentLang = cfg.lang || 'en';
+          document.getElementById('selectionOnlyToggle').checked = Boolean(cfg.selectionOnly);
+          applyLanguageTexts();
+          resetAllSteps();
+          updateApiKeyUi(cfg.hasApiKey);
+          document.getElementById('modelSelect').value = cfg.selectedModel || 'gemini-3.8-flash';
+          checkInitialDocEmptyState();
+        })
+        .withFailureHandler(showError)
+        .getInitialConfig();
+    });
+
+    /**
+     * Opens the custom modal dialog showing Developer Name, GitHub Repo, and Version
+     * when "DocuMentor AI" is clicked in the sidebar.
+     */
+    function openAboutDialog() {
+      google.script.run
+        .withFailureHandler(showError)
+        .showAboutDialog(currentLang);
+    }
+
+    /**
+     * Opens the custom modal dialog showing "🎓 Writing Coach & Learning Summary"
+     * with clipboard copy support.
+     */
+    function triggerLearningSummaryDialog(aiResult, appliedCount) {
+      if (!aiResult || !aiResult.learningSummary) return;
+
+      latestLearningSummaryPayload = {
+        sourceMode: aiResult.sourceMode || 'proofread',
+        analyzedSuggestionsCount: Number(aiResult.analyzedSuggestionsCount || 0),
+        analyzedCommentsCount: Number(aiResult.analyzedCommentsCount || 0),
+        learningSummary: aiResult.learningSummary,
+        overallFeedback: aiResult.overallFeedback || '',
+        modelUsed: aiResult.modelUsed || '',
+        appliedCount: Number(appliedCount || 0)
+      };
+
+      const btnReopen = document.getElementById('btnOpenLearningDialog');
+      if (btnReopen) {
+        btnReopen.style.display = 'inline-flex';
+      }
+
+      google.script.run
+        .withFailureHandler(showError)
+        .showLearningSummaryDialog(latestLearningSummaryPayload, currentLang);
+    }
+
+    function reopenLearningSummaryDialog() {
+      if (!latestLearningSummaryPayload) return;
+      google.script.run
+        .withFailureHandler(showError)
+        .showLearningSummaryDialog(latestLearningSummaryPayload, currentLang);
+    }
+
+    function setLanguage(lang) {
+      currentLang = (lang === 'ja') ? 'ja' : 'en';
+      clearAlerts();
+      applyLanguageTexts();
+      resetAllSteps();
+      google.script.run.saveLanguagePreference(currentLang);
+    }
+
+    function applyLanguageTexts() {
+      const t = I18N[currentLang];
+
+      document.getElementById('langBtnEn').classList.toggle('active', currentLang === 'en');
+      document.getElementById('langBtnJa').classList.toggle('active', currentLang === 'ja');
+
+      document.getElementById('brandHeaderBtn').title = t.brandTooltip;
+      document.getElementById('brandSub').textContent = t.brandSub;
+      document.getElementById('lblSettingsTitle').textContent = t.settingsTitle;
+      document.getElementById('lblApiKey').textContent = t.apiKeyLabel;
+      document.getElementById('btnSaveKey').textContent = t.saveBtn;
+      document.getElementById('lblApiKeyConfigured').textContent = t.apiKeyConfigured;
+      document.getElementById('btnResetKey').textContent = t.resetBtn;
+      document.getElementById('lblModelSelect').textContent = t.modelLabel;
+      document.getElementById('optModelFlash').textContent = t.modelFlash;
+      document.getElementById('optModelArgon').textContent = t.modelArgon;
+
+      document.getElementById('lblPromptSection').textContent = t.promptSection;
+      document.getElementById('lblScopeToggleTitle').textContent = t.scopeToggleTitle;
+      updateScopeToggleUi();
+
+      document.getElementById('emptyDocBanner').innerHTML = t.emptyBanner;
+      document.getElementById('lblCustomPrompt').textContent = t.customPromptLabel;
+      document.getElementById('customPrompt').placeholder = t.customPromptPlaceholder;
+
+      const chipGroup = document.getElementById('chipGroup');
+      chipGroup.innerHTML = '';
+      t.chips.forEach(chip => {
+        const span = document.createElement('span');
+        span.className = 'chip';
+        span.textContent = chip.label;
+        span.onclick = () => appendChip(chip.text);
+        chipGroup.appendChild(span);
+      });
+
+      document.getElementById('lblBtnRun').textContent = t.btnRun;
+      document.getElementById('lblBtnGenerateLearningFromExisting').textContent = t.btnGenerateLearningFromExisting;
+      document.getElementById('lblBtnGenerate').textContent = t.btnGenerate;
+      document.getElementById('lblBtnAcceptAll').textContent = t.btnAcceptAll;
+      document.getElementById('lblBtnClearAll').textContent = t.btnClearAll;
+      document.getElementById('lblBtnClearAllComments').textContent = t.btnClearAllComments;
+      document.getElementById('lblBtnOpenLearningDialog').textContent = t.btnOpenLearningDialog;
+      document.getElementById('lblDashboardTitle').textContent = t.dashboardTitle;
+      document.getElementById('btnExpandAll').textContent = t.expandAll;
+
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById('stepTitle' + i).textContent = t.stepTitles[i];
+      }
+    }
+
+    function updateScopeToggleUi() {
+      const t = I18N[currentLang];
+      const isSelectionOnly = document.getElementById('selectionOnlyToggle').checked;
+      const box = document.getElementById('scopeToggleBox');
+      const desc = document.getElementById('lblScopeToggleDesc');
+
+      box.classList.toggle('selection-mode', isSelectionOnly);
+      desc.textContent = isSelectionOnly ? t.scopeDescSelection : t.scopeDescFullTab;
+    }
+
+    function handleScopeToggleChange() {
+      updateScopeToggleUi();
+      const isSelectionOnly = document.getElementById('selectionOnlyToggle').checked;
+      google.script.run.saveScopePreference(isSelectionOnly);
+    }
+
+    function updateApiKeyUi(hasApiKey) {
+      document.getElementById('apiKeyInputContainer').style.display = hasApiKey ? 'none' : 'block';
+      document.getElementById('apiKeyConfiguredContainer').style.display = hasApiKey ? 'block' : 'none';
+      if (hasApiKey) {
+        document.getElementById('apiKeyInput').value = '';
+      }
+    }
+
+    function handleSaveApiKey() {
+      clearAlerts();
+      const t = I18N[currentLang];
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (!key) {
+        showError(t.errors.enterApiKey);
+        return;
+      }
+      setBusy(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          setBusy(false);
+          updateApiKeyUi(res.hasApiKey);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          showError(err);
+        })
+        .saveApiKey(key);
+    }
+
+    function handleResetApiKey() {
+      clearAlerts();
+      google.script.run
+        .withSuccessHandler(() => updateApiKeyUi(false))
+        .withFailureHandler(showError)
+        .deleteApiKey();
+    }
+
+    function handleModelChange() {
+      const model = document.getElementById('modelSelect').value;
+      google.script.run.saveModelPreference(model);
+    }
+
+    function appendChip(text) {
+      const el = document.getElementById('customPrompt');
+      el.value = el.value ? el.value + '\n' + text : text;
+      el.focus();
+    }
+
+    function checkInitialDocEmptyState() {
+      google.script.run
+        .withSuccessHandler(docData => {
+          isDocEmptyState = docData.isEmpty;
+          document.getElementById('emptyDocBanner').style.display = isDocEmptyState ? 'block' : 'none';
+        })
+        .withFailureHandler(() => {})
+        .step1_fetchDocument(false, currentLang);
+    }
+
+    /**
+     * Reloads current suggestions from the active tab first, then executes Accept All.
+     */
+    function handleAcceptAll() {
+      clearAlerts();
+      resetAllSteps();
+      const t = I18N[currentLang];
+
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.reloading, true);
+
+      google.script.run
+        .withSuccessHandler(docData => {
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
+
+          setStepStatus(2, 'completed', t.states.skipped, false);
+          document.getElementById('stepBody2').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForAction)}</p>`;
+
+          renderStep3Result();
+          setStepStatus(3, 'completed', t.states.completed, true);
+
+          setStepStatus(4, 'active', t.states.running, true);
+
+          google.script.run
+            .withSuccessHandler(res => {
+              setBusy(false);
+              setStepStatus(4, 'completed', t.states.completed, true);
+              document.getElementById('stepBody4').innerHTML = `
+                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
+                  ${escapeHtml(res.message)}
+                </div>
+              `;
+              showInfo(res.message);
+            })
+            .withFailureHandler(err => {
+              setBusy(false);
+              setStepStatus(4, 'error', t.states.error, true);
+              showError(err);
+            })
+            .executeAcceptAllFromReloaded(docData.allSuggestionIds || [], currentLang);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step1_fetchDocument(false, currentLang);
+    }
+
+    /**
+     * Reloads current suggestions from the active tab first, then executes Clear All Suggestions.
+     */
+    function handleClearAll() {
+      clearAlerts();
+      resetAllSteps();
+      const t = I18N[currentLang];
+
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.reloading, true);
+
+      google.script.run
+        .withSuccessHandler(docData => {
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
+
+          setStepStatus(2, 'completed', t.states.skipped, false);
+          document.getElementById('stepBody2').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForAction)}</p>`;
+
+          renderStep3Result();
+          setStepStatus(3, 'completed', t.states.completed, true);
+
+          setStepStatus(4, 'active', t.states.running, true);
+
+          google.script.run
+            .withSuccessHandler(res => {
+              setBusy(false);
+              setStepStatus(4, 'completed', t.states.completed, true);
+              document.getElementById('stepBody4').innerHTML = `
+                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
+                  ${escapeHtml(res.message)}
+                </div>
+              `;
+              showInfo(res.message);
+            })
+            .withFailureHandler(err => {
+              setBusy(false);
+              setStepStatus(4, 'error', t.states.error, true);
+              showError(err);
+            })
+            .executeClearAllFromReloaded(docData.allSuggestionIds || [], currentLang);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step1_fetchDocument(false, currentLang);
+    }
+
+    /**
+     * Reloads current comments from the active tab first, then executes Clear All Comments.
+     */
+    function handleClearAllComments() {
+      clearAlerts();
+      resetAllSteps();
+      const t = I18N[currentLang];
+
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.reloading, true);
+
+      google.script.run
+        .withSuccessHandler(docData => {
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
+
+          setStepStatus(2, 'completed', t.states.skipped, false);
+          document.getElementById('stepBody2').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForAction)}</p>`;
+
+          renderStep3Result();
+          setStepStatus(3, 'completed', t.states.completed, true);
+
+          setStepStatus(4, 'active', t.states.running, true);
+
+          google.script.run
+            .withSuccessHandler(res => {
+              setBusy(false);
+              setStepStatus(4, 'completed', t.states.completed, true);
+              document.getElementById('stepBody4').innerHTML = `
+                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
+                  ${escapeHtml(res.message)}
+                </div>
+              `;
+              showInfo(res.message);
+            })
+            .withFailureHandler(err => {
+              setBusy(false);
+              setStepStatus(4, 'error', t.states.error, true);
+              showError(err);
+            })
+            .executeClearAllCommentsFromReloaded(docData.allCommentIds || [], currentLang);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step1_fetchDocument(false, currentLang);
+    }
+
+    /**
+     * Generates initial article text when the document is empty or when requested by the user.
+     */
+    function runGenerateInitialArticle() {
+      clearAlerts();
+      const t = I18N[currentLang];
+      const customPrompt = document.getElementById('customPrompt').value.trim();
+      const model = document.getElementById('modelSelect').value;
+
+      if (!customPrompt) {
+        showError(t.errors.enterPrompt);
+        return;
+      }
+
+      resetAllSteps();
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.running, true);
+
+      google.script.run
+        .withSuccessHandler(res => {
+          setBusy(false);
+          isDocEmptyState = false;
+          document.getElementById('emptyDocBanner').style.display = 'none';
+          setStepStatus(1, 'completed', t.states.completed, true);
+          document.getElementById('stepBody1').innerHTML = `
+            <div style="color: #6ee7b7; margin-bottom: 8px;">
+              ${t.initialGenSuccess(res.charCount)}
+            </div>
+            <pre class="json-box">${escapeHtml(res.generatedText)}</pre>
+          `;
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true);
+          showError(err);
+        })
+        .generateInitialArticle(customPrompt, model, currentLang);
+    }
+
+    /**
+     * Generates the "Writing Coach & Learning Summary" directly from existing suggestions
+     * and comments in the Google Document (such as feedback from other users/reviewers or AI),
+     * without modifying the document. Can also be re-run separately after "Run Proofreading".
+     */
+    function runLearningSummaryFromExisting() {
+      clearAlerts();
+      resetAllSteps();
+
+      const t = I18N[currentLang];
+      const customPrompt = document.getElementById('customPrompt').value.trim();
+      const model = document.getElementById('modelSelect').value;
+      const selectionOnly = document.getElementById('selectionOnlyToggle').checked;
+
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.running, true);
+
+      google.script.run
+        .withSuccessHandler(docData => {
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
+
+          setStepStatus(2, 'active', t.states.running, true);
+
+          google.script.run
+            .withSuccessHandler(aiResult => {
+              setBusy(false);
+              renderStep2ExistingAnalysisResult(aiResult);
+              setStepStatus(2, 'completed', t.states.completed, true);
+
+              setStepStatus(3, 'completed', t.states.skipped, false);
+              document.getElementById('stepBody3').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForLearningOnly)}</p>`;
+
+              setStepStatus(4, 'completed', t.states.completed, true);
+              document.getElementById('stepBody4').innerHTML = `
+                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5; line-height: 1.55;">
+                  ${t.existingLearningSuccessMsg(aiResult.analyzedSuggestionsCount || 0, aiResult.analyzedCommentsCount || 0)}
+                </div>
+              `;
+
+              const totalAnalyzed = Number(aiResult.analyzedSuggestionsCount || 0) + Number(aiResult.analyzedCommentsCount || 0);
+              triggerLearningSummaryDialog(aiResult, totalAnalyzed);
+            })
+            .withFailureHandler(err => {
+              setBusy(false);
+              setStepStatus(2, 'error', t.states.error, true);
+              showError(err);
+            })
+            .step2_generateLearningSummaryFromExisting(docData, customPrompt, model, currentLang);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step1_fetchDocument(selectionOnly, currentLang, true);
+    }
+
+    /**
+     * Clears the Process Dashboard and executes Steps 1 to 4 sequentially.
+     */
+    function runFullPipeline() {
+      clearAlerts();
+      resetAllSteps();
+
+      const t = I18N[currentLang];
+      const customPrompt = document.getElementById('customPrompt').value.trim();
+      const model = document.getElementById('modelSelect').value;
+      const selectionOnly = document.getElementById('selectionOnlyToggle').checked;
+
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.running, true);
+
+      google.script.run
+        .withSuccessHandler(docData => {
+          if (docData.isEmpty) {
+            isDocEmptyState = true;
+            document.getElementById('emptyDocBanner').style.display = 'block';
+            if (customPrompt) {
+              runGenerateInitialArticle();
+              return;
+            } else {
+              setBusy(false);
+              setStepStatus(1, 'error', t.states.error, true);
+              showError(t.errors.enterPrompt);
+              return;
+            }
+          }
+
+          isDocEmptyState = false;
+          document.getElementById('emptyDocBanner').style.display = 'none';
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
+
+          executeStep2(docData, customPrompt, model);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step1_fetchDocument(selectionOnly, currentLang);
+    }
+
+    function executeStep2(docData, customPrompt, model) {
+      const t = I18N[currentLang];
+      setStepStatus(2, 'active', t.states.running, true);
+
+      google.script.run
+        .withSuccessHandler(aiResult => {
+          renderStep2Result(aiResult);
+          setStepStatus(2, 'completed', t.states.completed, true);
+
+          executeStep3(docData, aiResult);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(2, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step2_generateProofreading(docData, customPrompt, model, currentLang);
+    }
+
+    function executeStep3(docData, aiResult) {
+      const t = I18N[currentLang];
+      setStepStatus(3, 'active', t.states.running, true);
+
+      google.script.run
+        .withSuccessHandler(builtData => {
+          renderStep3Result();
+          setStepStatus(3, 'completed', t.states.completed, true);
+
+          if (builtData.matchedCount === 0) {
+            setBusy(false);
+            setStepStatus(4, 'completed', t.states.skipped, true);
+            document.getElementById('stepBody4').innerHTML = `<p>${t.step2Labels.noSuggestions}</p>`;
+            triggerLearningSummaryDialog(aiResult, 0);
+            return;
+          }
+
+          executeStep4(builtData, aiResult);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(3, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step3_buildRequestBody(docData, aiResult, currentLang);
+    }
+
+    function executeStep4(builtData, aiResult) {
+      const t = I18N[currentLang];
+      setStepStatus(4, 'active', t.states.running, true);
+
+      google.script.run
+        .withSuccessHandler(applyResult => {
+          setBusy(false);
+          renderStep4Result(applyResult);
+          setStepStatus(4, 'completed', t.states.completed, true);
+          triggerLearningSummaryDialog(aiResult, applyResult.appliedSuggestionsCount);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(4, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step4_applySuggestions(builtData, currentLang);
+    }
+
+    /**
+     * Renders Step 1 metrics, active tab / selection scope badge, and context.
+     */
+    function renderStep1Result(docData) {
+      const t = I18N[currentLang];
+      const sugCount = (docData.allSuggestionIds || docData.existingSuggestions || []).length;
+      const comCount = (docData.existingComments || []).length;
+      const existingDisplayVal = comCount > 0 ? `${sugCount}/${comCount}` : `${sugCount}`;
+      const tablesCount = (docData.tables || []).length;
+      const visualsCount = (docData.visualElements || []).length;
+
+      const scopeBannerText = docData.selectionOnly
+        ? t.step1Metrics.scopeSelection(docData.activeTabTitle)
+        : t.step1Metrics.scopeFullTab(docData.activeTabTitle);
+
+      let existingHtml = '';
+      if (sugCount > 0 || comCount > 0) {
+        existingHtml = `
+          <div style="background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 11px; color: #fde68a;">
+            ${t.step1Metrics.existingAlert(sugCount, comCount)}
+          </div>
+        `;
+      }
+
+      let selectedPreviewHtml = '';
+      if (docData.selectionOnly && docData.selectedTextPreview) {
+        selectedPreviewHtml = `
+          <label class="field-label">${t.step1Metrics.selectedPreviewLabel}</label>
+          <pre class="json-box" style="margin-bottom: 8px; color: #6ee7b7;">${escapeHtml(docData.selectedTextPreview)}</pre>
+        `;
+      }
+
+      document.getElementById('stepBody1').innerHTML = `
+        <div class="scope-badge-banner">
+          <span>${escapeHtml(scopeBannerText)}</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-val">${docData.charCount}</div>
+            <div class="metric-lbl">${t.step1Metrics.chars}</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val">${existingDisplayVal}</div>
+            <div class="metric-lbl">${t.step1Metrics.existing}</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val">${tablesCount}</div>
+            <div class="metric-lbl">${t.step1Metrics.tables}</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val">${visualsCount}</div>
+            <div class="metric-lbl">${t.step1Metrics.visuals}</div>
+          </div>
+        </div>
+        ${existingHtml}
+        ${selectedPreviewHtml}
+        <label class="field-label">${t.step1Metrics.contextLabel}</label>
+        <pre class="json-box">${escapeHtml(docData.annotatedText)}</pre>
+      `;
+    }
+
+    /**
+     * Renders Step 2 AI proofreading cards (inline text/table-cell diffs and figure/chart/table cards).
+     */
+    function renderStep2Result(aiResult) {
+      const t = I18N[currentLang];
+      let cardsHtml = '';
+
+      (aiResult.suggestions || []).forEach((s, idx) => {
+        cardsHtml += `
+          <div class="suggestion-item">
+            <div class="sug-top">
+              <span class="cat-tag">#${idx + 1} ${escapeHtml(s.category)}</span>
+            </div>
+            <div>
+              <span class="diff-del">${escapeHtml(s.originalText)}</span>
+              <span style="margin: 0 4px;">➔</span>
+              <span class="diff-ins">${escapeHtml(s.suggestedText)}</span>
+            </div>
+            <div class="sug-explain">
+              <div><strong>${t.step2Labels.reason}</strong> ${escapeHtml(s.reason)}</div>
+              <div style="margin-top:3px; color:#93c5fd;"><strong>${t.step2Labels.learning}</strong> ${escapeHtml(s.learningPoint)}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      let elementCardsHtml = '';
+      (aiResult.elementSuggestions || []).forEach(elSug => {
+        elementCardsHtml += `
+          <div class="suggestion-item visual-card">
+            <div class="sug-top">
+              <span class="cat-tag visual-tag">📊 ${escapeHtml(elSug.targetId)} • ${escapeHtml(elSug.category)}</span>
+            </div>
+            <div style="color: #6ee7b7; font-weight: 600; margin-bottom: 4px;">
+              ${escapeHtml(elSug.suggestion)}
+            </div>
+            <div class="sug-explain">
+              <div><strong>${t.step2Labels.reason}</strong> ${escapeHtml(elSug.reason)}</div>
+              <div style="margin-top:3px; color:#93c5fd;"><strong>${t.step2Labels.learning}</strong> ${escapeHtml(elSug.learningPoint)}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      const existingNoteHtml = aiResult.existingSuggestionsNote
+        ? `<div style="margin-bottom:8px; padding:6px 8px; background:rgba(6,182,212,0.12); border-radius:6px; color:#a5f3fc; font-size:11px;">
+             <strong>${t.step2Labels.existingNote}</strong> ${escapeHtml(aiResult.existingSuggestionsNote)}
+           </div>`
+        : '';
+
+      const visualSectionHtml = elementCardsHtml
+        ? `<div style="margin-top: 10px; margin-bottom: 6px; font-weight: 600; color: #67e8f9;">${t.step2Labels.visualSection}</div>${elementCardsHtml}`
+        : '';
+
+      document.getElementById('stepBody2').innerHTML = `
+        <div style="margin-bottom: 8px; padding: 7px 9px; background: rgba(99,102,241,0.12); border-radius: 6px;">
+          <strong>${t.step2Labels.overall} (${escapeHtml(aiResult.modelUsed)}):</strong><br>
+          ${escapeHtml(aiResult.overallFeedback)}
+        </div>
+        ${existingNoteHtml}
+        <div>${cardsHtml || (!elementCardsHtml ? `<p>${t.step2Labels.noSuggestions}</p>` : '')}</div>
+        ${visualSectionHtml}
+      `;
+    }
+
+    /**
+     * Renders Step 2 cards when generating a Learning Summary from existing suggestions & comments.
+     */
+    function renderStep2ExistingAnalysisResult(aiResult) {
+      const t = I18N[currentLang];
+      let itemsHtml = '';
+
+      (aiResult.analyzedItems || []).forEach((item, idx) => {
+        itemsHtml += `
+          <div class="suggestion-item visual-card">
+            <div class="sug-top">
+              <span class="cat-tag visual-tag">#${idx + 1} ${escapeHtml(item.category)}</span>
+            </div>
+            <div style="color: #6ee7b7; font-weight: 600; margin-bottom: 4px;">
+              ${escapeHtml(item.targetSummary)}
+            </div>
+            <div class="sug-explain">
+              <div><strong>${t.step2Labels.reason}</strong> ${escapeHtml(item.reason)}</div>
+              <div style="margin-top:3px; color:#93c5fd;"><strong>${t.step2Labels.learning}</strong> ${escapeHtml(item.learningPoint)}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      document.getElementById('stepBody2').innerHTML = `
+        <div style="margin-bottom: 8px; padding: 7px 9px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); border-radius: 6px;">
+          <strong>${t.step2Labels.overall} (${escapeHtml(aiResult.modelUsed)}):</strong><br>
+          ${escapeHtml(aiResult.overallFeedback)}
+        </div>
+        <div style="margin-top: 8px; margin-bottom: 6px; font-weight: 600; color: #67e8f9;">
+          ${escapeHtml(t.step2Labels.existingAnalysisSection)}
+        </div>
+        <div>${itemsHtml}</div>
+      `;
+    }
+
+    /**
+     * Renders Step 3 simple completion status.
+     */
+    function renderStep3Result() {
+      const t = I18N[currentLang];
+      document.getElementById('stepBody3').innerHTML = `
+        <div style="color: #6ee7b7; font-weight: 600;">
+          ${t.step3CompletedMsg}
+        </div>
+      `;
+    }
+
+    /**
+     * Renders Step 4 completion message.
+     */
+    function renderStep4Result(applyResult) {
+      const t = I18N[currentLang];
+      document.getElementById('stepBody4').innerHTML = `
+        <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5; line-height: 1.55;">
+          ${t.step4SuccessMsg(applyResult.appliedSuggestionsCount)}
+        </div>
+      `;
+    }
+
+    /**
+     * Updates the status badge, spinner, and body of a specific pipeline step.
+     */
+    function setStepStatus(stepNum, stateClass, labelText, autoOpen) {
+      const card = document.getElementById('stepCard' + stepNum);
+      const stateEl = document.getElementById('stepState' + stepNum);
+      const badgeEl = document.getElementById('stepBadge' + stepNum);
+      const bodyEl = document.getElementById('stepBody' + stepNum);
+
+      card.classList.remove('active', 'completed', 'error');
+      if (stateClass) card.classList.add(stateClass);
+      if (autoOpen) card.classList.add('open');
+
+      if (stateClass === 'active') {
+        badgeEl.innerHTML = '<span class="spinner"></span>';
+        stateEl.innerHTML = `<span class="spinner" style="width:10px;height:10px;border-width:1.5px;"></span> ${escapeHtml(labelText)}`;
+        bodyEl.innerHTML = `<div class="loading-row"><span class="spinner"></span><span>${escapeHtml(labelText)}</span></div>`;
+      } else if (stateClass === 'completed') {
+        badgeEl.textContent = '✓';
+        stateEl.textContent = labelText;
+      } else if (stateClass === 'error') {
+        badgeEl.textContent = '!';
+        stateEl.textContent = labelText;
+      } else {
+        badgeEl.textContent = stepNum;
+        stateEl.textContent = labelText;
+      }
+    }
+
+    /**
+     * Completely resets and clears all steps in the Process Dashboard.
+     */
+    function resetAllSteps() {
+      const t = I18N[currentLang];
+      latestLearningSummaryPayload = null;
+      const btnReopen = document.getElementById('btnOpenLearningDialog');
+      if (btnReopen) {
+        btnReopen.style.display = 'none';
+      }
+
+      for (let i = 1; i <= 4; i++) {
+        const card = document.getElementById('stepCard' + i);
+        card.classList.remove('active', 'completed', 'error', 'open');
+        document.getElementById('stepState' + i).textContent = t.states.waiting;
+        document.getElementById('stepBadge' + i).textContent = i;
+        document.getElementById('stepBody' + i).innerHTML = `<p style="color: var(--text-muted);">${escapeHtml(t.stepDesc[i])}</p>`;
+      }
+    }
+
+    function toggleStep(stepNum) {
+      document.getElementById('stepCard' + stepNum).classList.toggle('open');
+    }
+
+    function expandAllSteps() {
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById('stepCard' + i).classList.add('open');
+      }
+    }
+
+    function setBusy(isBusy) {
+      document.getElementById('btnRunProofread').disabled = isBusy;
+      document.getElementById('btnGenerateLearningFromExisting').disabled = isBusy;
+      document.getElementById('btnGenerateInitial').disabled = isBusy;
+      document.getElementById('btnAcceptAll').disabled = isBusy;
+      document.getElementById('btnClearAll').disabled = isBusy;
+      document.getElementById('btnClearAllComments').disabled = isBusy;
+      document.getElementById('selectionOnlyToggle').disabled = isBusy;
+    }
+
+    function showError(err) {
+      const box = document.getElementById('errorBox');
+      box.style.display = 'block';
+      box.textContent = '⚠️ ' + (err && err.message ? err.message : String(err));
+    }
+
+    function showInfo(msg) {
+      const box = document.getElementById('infoBox');
+      box.style.display = 'block';
+      box.textContent = msg;
+    }
+
+    function clearAlerts() {
+      const errBox = document.getElementById('errorBox');
+      const infoBox = document.getElementById('infoBox');
+      errBox.style.display = 'none';
+      errBox.textContent = '';
+      infoBox.style.display = 'none';
+      infoBox.textContent = '';
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>
