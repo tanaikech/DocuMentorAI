@@ -129,7 +129,7 @@
     }
     .btn-link:hover { color: #fff; }
 
-    /* Toggle Switch for Proofreading Scope */
+    /* Toggle Switches for Proofreading Scope, Hint-Only Mode & Resolved History */
     .scope-toggle-box {
       display: flex;
       align-items: center;
@@ -139,12 +139,20 @@
       border: 1px solid rgba(99, 102, 241, 0.3);
       border-radius: var(--radius-sm);
       padding: 8px 10px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       transition: border-color 0.2s, background 0.2s;
     }
     .scope-toggle-box.selection-mode {
       border-color: rgba(6, 182, 212, 0.55);
       background: rgba(8, 30, 48, 0.75);
+    }
+    .scope-toggle-box.hint-mode {
+      border-color: rgba(245, 158, 11, 0.55);
+      background: rgba(45, 28, 10, 0.72);
+    }
+    .scope-toggle-box.resolved-mode {
+      border-color: rgba(16, 185, 129, 0.5);
+      background: rgba(8, 35, 30, 0.72);
     }
     .scope-info {
       display: flex;
@@ -161,6 +169,12 @@
       font-size: 10px;
       color: var(--accent-cyan);
       line-height: 1.35;
+    }
+    .scope-toggle-box.hint-mode .scope-desc {
+      color: #fcd34d;
+    }
+    .scope-toggle-box.resolved-mode .scope-desc {
+      color: #6ee7b7;
     }
     .switch {
       position: relative;
@@ -200,6 +214,46 @@
     }
     .switch input:checked + .slider:before {
       transform: translateX(17px);
+    }
+    details.hint-reveal, details.history-ledger {
+      margin-top: 6px;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 10.5px;
+    }
+    details.hint-reveal summary, details.history-ledger summary {
+      cursor: pointer;
+      color: #fcd34d;
+      font-weight: 600;
+      user-select: none;
+    }
+    details.history-ledger summary {
+      color: #6ee7b7;
+    }
+    .history-item {
+      padding: 6px 0;
+      border-top: 1px dashed rgba(148, 163, 184, 0.2);
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+    .history-item:first-of-type {
+      margin-top: 5px;
+    }
+    .status-pill {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+      margin-right: 4px;
+    }
+    .status-pill.rejected {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fda4af;
     }
 
     .chip-group { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; margin-bottom: 10px; }
@@ -411,7 +465,7 @@
       <div class="brand-icon">✦</div>
       <div>
         <span class="brand-title">DocuMentor AI <span class="brand-info-dot">ⓘ</span></span>
-        <span id="brandSub" class="brand-sub">v1.0.1 • AI Proofreading Coach</span>
+        <span id="brandSub" class="brand-sub">v1.0.2 • AI Proofreading Coach</span>
       </div>
     </div>
     <div class="header-right">
@@ -462,14 +516,38 @@
       <span id="lblPromptSection">✍️ Proofreading Scope & Controls</span>
     </div>
 
-    <!-- Toggle Switch: Entire Active Tab (Default OFF) vs Selection Only (ON) -->
+    <!-- Toggle Switch 1: Entire Active Tab (Default OFF) vs Selection Only (ON) -->
     <div id="scopeToggleBox" class="scope-toggle-box">
       <div class="scope-info">
-        <span id="lblScopeToggleTitle" class="scope-title">Proofread Selection Only</span>
+        <span id="lblScopeToggleTitle" class="scope-title">🎯 Proofread Selection Only</span>
         <span id="lblScopeToggleDesc" class="scope-desc">OFF (Default): Entire Active Tab (Text, Tables & Figures)</span>
       </div>
       <label class="switch">
         <input type="checkbox" id="selectionOnlyToggle" onchange="handleScopeToggleChange()" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Toggle Switch 2: Hint-Only Mode (Comment Without Rewrite) -->
+    <div id="hintToggleBox" class="scope-toggle-box">
+      <div class="scope-info">
+        <span id="lblHintToggleTitle" class="scope-title">💡 Hint-Only Mode (Comment Without Rewrite)</span>
+        <span id="lblHintToggleDesc" class="scope-desc">OFF (Default): Proposes inline text replacements + coaching replies.</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="hintOnlyToggle" onchange="handleHintToggleChange()" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Toggle Switch 3: Include Resolved Review History -->
+    <div id="resolvedToggleBox" class="scope-toggle-box">
+      <div class="scope-info">
+        <span id="lblResolvedToggleTitle" class="scope-title">📜 Include Resolved Review History</span>
+        <span id="lblResolvedToggleDesc" class="scope-desc">OFF (Default): Analyzes only active suggestions and open comments.</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="includeResolvedToggle" onchange="handleResolvedToggleChange()" />
         <span class="slider"></span>
       </label>
     </div>
@@ -568,7 +646,7 @@
 
   <!-- Footer -->
   <div class="app-footer">
-    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.1 • Created by Kanshi Tanaike
+    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.2 • Created by Kanshi Tanaike
   </div>
 
   <script>
@@ -578,7 +656,7 @@
 
     const I18N = {
       en: {
-        brandSub: 'v1.0.1 • AI Proofreading Coach',
+        brandSub: 'v1.0.2 • AI Proofreading Coach',
         brandTooltip: 'Click to view Developer, GitHub Repository & Version info',
         settingsTitle: '⚙️ AI Engine & API Settings',
         apiKeyLabel: 'Gemini API Key',
@@ -592,6 +670,12 @@
         scopeToggleTitle: '🎯 Proofread Selection Only',
         scopeDescFullTab: 'OFF (Default): Proofreads the entire active tab (text, tables & figures).',
         scopeDescSelection: 'ON: Proofreads only your selected text, tables, or figures.',
+        hintToggleTitle: '💡 Hint-Only Mode (Comment Without Rewrite)',
+        hintDescOff: 'OFF (Default): Proposes inline text replacements + coaching replies.',
+        hintDescOn: 'ON: Anchors coaching hints as comments so you can rewrite the sentence yourself first.',
+        resolvedToggleTitle: '📜 Include Resolved Review History',
+        resolvedDescOff: 'OFF (Default): Analyzes only active suggestions and open comments.',
+        resolvedDescOn: 'ON: Extracts resolved comments & accepted/rejected suggestions for cumulative learning.',
         emptyBanner: '📄 <strong>The active tab is currently empty.</strong><br>Enter a topic in the prompt field below and click "Generate Initial Text" or "Run Proofreading".',
         customPromptLabel: 'Additional Proofreading Instructions (or Topic for Empty Document)',
         customPromptPlaceholder: 'e.g., Refine the text, tables, and charts for a professional business report.',
@@ -602,6 +686,7 @@
           { label: '#Grammar & Flow', text: 'Focus on fixing grammatical awkwardness and subject-verb agreement.' }
         ],
         btnRun: '🚀 Run Proofreading (Suggest & Coach)',
+        btnRunHint: '💡 Run Proofreading (Hint-Only Comments)',
         btnGenerateLearningFromExisting: '🎓 Generate Learning Summary from Suggestions & Comments',
         btnGenerate: '📝 Generate Initial Text from Prompt',
         btnAcceptAll: '✅ Accept All Suggestions',
@@ -617,9 +702,9 @@
           4: 'Apply Suggestions & Comments'
         },
         stepDesc: {
-          1: 'Fetches active tab text, structured tables, figures/charts, and existing suggestions/comments.',
-          2: 'Analyzes the manuscript and target elements to generate suggestions and author learning advice.',
-          3: 'Builds the batchUpdate payload for inline suggestions and anchored comments.',
+          1: 'Fetches active tab text, structured tables, figures/charts, and active/resolved review threads.',
+          2: 'Analyzes the manuscript and target elements to generate suggestions/hints and author learning advice.',
+          3: 'Builds the batchUpdate payload for inline suggestions and/or anchored coaching comments.',
           4: 'Applies suggestions and learning comments to the Google Doc.'
         },
         states: {
@@ -634,27 +719,40 @@
           scopeFullTab: tabTitle => `📑 Scope: Entire Active Tab (${tabTitle || 'Default Tab'})`,
           scopeSelection: tabTitle => `🎯 Scope: Selected Content Only in "${tabTitle || 'Active Tab'}"`,
           chars: 'Target Chars',
-          existing: 'Existing',
+          existing: 'Active / Resolved',
           tables: 'Tables',
           visuals: 'Figures',
-          existingAlert: (sugCount, comCount) => `💡 <strong>Detected ${sugCount} existing suggestion(s) and ${comCount} comment thread(s).</strong><br>You can generate a Learning Summary from them or run additional AI proofreading.`,
+          existingAlert: (sugCount, comCount, resCount) => {
+            const base = `💡 <strong>Detected ${sugCount} active suggestion(s) and ${comCount} open comment(s)</strong>`;
+            const resPart = resCount > 0 ? ` <strong>(+ ${resCount} resolved review thread(s) in history)</strong>` : '';
+            return `${base}${resPart}.<br>You can generate a Learning Summary from them or run additional AI proofreading.`;
+          },
+          resolvedLedgerSummary: count => `📜 View Resolved Review History (${count} resolved/accepted/rejected thread(s))`,
           selectedPreviewLabel: 'Selected Target Text',
           contextLabel: 'Full Active Tab Context (Text, Tables & Visual Markers)'
         },
         step2Labels: {
           overall: '📋 Overall Evaluation',
-          existingNote: '🔄 Consideration of Existing Suggestions:',
-          existingAnalysisSection: '🔍 Key Lessons from Existing Suggestions & Comments',
+          existingNote: '🔄 Consideration of Existing & Resolved Reviews:',
+          existingAnalysisSection: '🔍 Key Lessons from Active & Resolved Review History',
           visualSection: '💬 Figure/Chart & Table Review Comments (Created as Comments)',
-          reason: '💡 Reason:',
-          learning: '🎓 Learning Point:',
+          reason: '💡 Issue / Reason:',
+          learning: '🎓 Coaching Hint / Learning Point:',
+          hintFlaggedLabel: '🎯 Flagged Phrase (Try rewriting this in the document):',
+          hintRevealSummary: '👁️ Show Reference Rewrite (After Trying Yourself)',
+          hintModeBadge: '💡 Hint-Only Comment',
           noSuggestions: 'No revisions needed.',
           skippedForAction: 'Skipped (Direct Suggestion/Comment Management Action)',
           skippedForLearningOnly: 'Skipped (Learning Summary Generation Mode — Document Unmodified)'
         },
         step3CompletedMsg: '✅ Completed building the suggestion and comment request payloads.',
-        step4SuccessMsg: count => `✅ <strong>${count} proofreading suggestions and learning comments have been applied to the document!</strong><br>The "🎓 Writing Coach & Learning Summary" dialog has been opened, and you can also review individual suggestion cards and figure/table comments on the right side of Google Docs.`,
-        existingLearningSuccessMsg: (sugCount, comCount) => `🎓 <strong>Generated "Writing Coach & Learning Summary" from ${sugCount} existing suggestion(s) and ${comCount} comment thread(s)!</strong><br>The summary modal dialog has been opened so you can learn from existing reviewer suggestions and comments.`,
+        step4SuccessMsg: (count, isHintOnly) => isHintOnly
+          ? `💡 <strong>${count} coaching hint comment(s) have been anchored to the document (Hint-Only Mode)!</strong><br>No inline text replacements were forced—try revising the highlighted sentences yourself using the coaching hints, or open "👁️ Show Reference Rewrite" in Step 2 above to compare.`
+          : `✅ <strong>${count} proofreading suggestions and learning comments have been applied to the document!</strong><br>The "🎓 Writing Coach & Learning Summary" dialog has been opened, and you can also review individual suggestion cards and figure/table comments on the right side of Google Docs.`,
+        existingLearningSuccessMsg: (sugCount, comCount, resCount) => {
+          const resNote = resCount > 0 ? ` and <strong>${resCount} resolved review(s)</strong>` : '';
+          return `🎓 <strong>Generated "Writing Coach & Learning Summary" from ${sugCount} active suggestion(s), ${comCount} open comment(s)${resNote}!</strong><br>The summary modal dialog has been opened so you can learn from your complete review history.`;
+        },
         initialGenSuccess: count => `✨ <strong>Generated new text (${count} chars) in the active tab!</strong><br>Click <strong>"🚀 Run Proofreading"</strong> above to proofread this text.`,
         errors: {
           enterApiKey: 'Please enter an API key.',
@@ -662,7 +760,7 @@
         }
       },
       ja: {
-        brandSub: 'v1.0.1 • AI推敲＆学習コーチ',
+        brandSub: 'v1.0.2 • AI推敲＆学習コーチ',
         brandTooltip: 'クリックして開発者・GitHubリポジトリ・バージョン情報を表示',
         settingsTitle: '⚙️ AI エンジン & API設定',
         apiKeyLabel: 'Gemini API キー',
@@ -676,6 +774,12 @@
         scopeToggleTitle: '🎯 選択した部分のみを推敲',
         scopeDescFullTab: 'OFF (デフォルト): アクティブなタブ全体（文章・表・図）を推敲',
         scopeDescSelection: 'ON: 選択中の部分（文章・表・図など）のみを推敲',
+        hintToggleTitle: '💡 ヒントのみ表示モード（修正案を直接出さずにコメント）',
+        hintDescOff: 'OFF (デフォルト): 本文への修正提案（置換）＋理由・学習コメントを作成',
+        hintDescOn: 'ON: 修正文を直接提案せず、課題と改善ヒントのみをコメント表示（自力での推敲練習用）',
+        resolvedToggleTitle: '📜 解決済みの提案・コメント履歴も学習に含める',
+        resolvedDescOff: 'OFF (デフォルト): 現在未解決の提案・オープンなコメントのみを対象',
+        resolvedDescOn: 'ON: 解決済みコメントや承認・却下済みの提案履歴もDocs APIから抽出して分析',
         emptyBanner: '📄 <strong>現在アクティブなタブに文章がありません。</strong><br>下のプロンプト欄に作成したい文章のテーマを入力し、「文章を新規作成」または「推敲を実行」を押してください。',
         customPromptLabel: '追加の推敲指示（白紙の場合は作成したい文章の内容）',
         customPromptPlaceholder: '例: 本文や表・チャートの整合性を確認し、ビジネス文書として自然な表現に推敲してください。',
@@ -686,6 +790,7 @@
           { label: '#文法・助詞チェック', text: '主語と述語のねじれや助詞の誤りを重点的にチェックしてください。' }
         ],
         btnRun: '🚀 推敲を実行（提案＆学習コメント生成）',
+        btnRunHint: '💡 推敲を実行（ヒントコメントのみ付与）',
         btnGenerateLearningFromExisting: '🎓 既存の提案・コメントから学習まとめを生成',
         btnGenerate: '📝 カスタムプロンプトから文章を新規作成',
         btnAcceptAll: '✅ 全ての提案を承認',
@@ -701,10 +806,10 @@
           4: 'Google Docsへの提案 & コメント適用'
         },
         stepDesc: {
-          1: 'アクティブなタブ（または選択範囲）の文章、表、図・チャート、既存の提案・コメントを解析します。',
-          2: '原稿全体と推敲対象（または既存の提案・コメント）を理解し、修正提案と学習アドバイスを生成します。',
-          3: '提案モードおよびコメント用のリクエストを構築します。',
-          4: 'ドキュメント上に修正提案と学習解説コメント（図・表コメント含む）を反映します。'
+          1: 'アクティブなタブ（または選択範囲）の文章、表、図・チャート、未解決および解決済みの提案・コメント履歴を解析します。',
+          2: '原稿全体と推敲対象（または提案・コメント履歴）を理解し、修正提案/ヒントと学習アドバイスを生成します。',
+          3: '提案モードおよびヒント・解説コメント用のリクエストを構築します。',
+          4: 'ドキュメント上に修正提案またはヒント解説コメント（図・表コメント含む）を反映します。'
         },
         states: {
           waiting: '待機中',
@@ -718,27 +823,40 @@
           scopeFullTab: tabTitle => `📑 対象範囲: アクティブなタブ全体 (${tabTitle || 'メインタブ'})`,
           scopeSelection: tabTitle => `🎯 対象範囲: 選択した部分のみ (${tabTitle || 'アクティブタブ'})`,
           chars: '対象文字数',
-          existing: '既存提案/コメント',
+          existing: '未解決 / 解決済',
           tables: '対象表(Table)',
           visuals: '対象図・チャート',
-          existingAlert: (sugCount, comCount) => `💡 <strong>既存の修正提案 (${sugCount}件) とコメント (${comCount}件) を検出しました。</strong><br>これらから学習アドバイスまとめを生成するか、配慮した上で追加の推敲を行えます。`,
+          existingAlert: (sugCount, comCount, resCount) => {
+            const base = `💡 <strong>未解決の提案 (${sugCount}件) とオープンなコメント (${comCount}件)</strong>`;
+            const resPart = resCount > 0 ? ` <strong>（＋解決済みのレビュー履歴 ${resCount}件）</strong>` : '';
+            return `${base}${resPart}を検出しました。<br>これらから学習アドバイスまとめを生成するか、配慮した上で追加の推敲を行えます。`;
+          },
+          resolvedLedgerSummary: count => `📜 解決済みの提案・コメント履歴を表示 (${count}件の解決済/承認済/却下済スレッド)`,
           selectedPreviewLabel: '選択された推敲対象テキスト',
           contextLabel: '取得したタブ全体のコンテキスト (本文・表・図チャート注釈)'
         },
         step2Labels: {
           overall: '📋 全体講評',
-          existingNote: '🔄 既存提案への配慮:',
-          existingAnalysisSection: '🔍 既存の提案・コメントから抽出された主な学び',
+          existingNote: '🔄 既存および解決済みレビューへの配慮:',
+          existingAnalysisSection: '🔍 提案・コメント履歴（解決済み含む）から抽出された主な学び',
           visualSection: '💬 図・チャート・表への推敲コメント（コメントとして作成）',
-          reason: '💡 理由:',
-          learning: '🎓 学習:',
+          reason: '💡 課題・理由:',
+          learning: '🎓 改善ヒント・学習ポイント:',
+          hintFlaggedLabel: '🎯 指摘箇所（まずはご自身で書き直しを試してみてください）:',
+          hintRevealSummary: '👁️ AIの修正参考例を見る（自分で考えた後にクリック）',
+          hintModeBadge: '💡 ヒントのみ表示',
           noSuggestions: '修正提案はありません。',
           skippedForAction: 'スキップ（提案・コメントの一括管理処理のため）',
           skippedForLearningOnly: 'スキップ（既存の提案・コメントからの学習まとめ生成モードのためドキュメント変更なし）'
         },
         step3CompletedMsg: '✅ リクエストボディの構築が完了しました。',
-        step4SuccessMsg: count => `✅ <strong>${count} 件の推敲提案と学習コメントをドキュメントに反映しました！</strong><br>カスタムダイアログに「🎓 執筆者への学習アドバイスまとめ」を表示しました。ドキュメント右側の提案カードおよび図・表へのコメントからも各修正理由を確認できます。`,
-        existingLearningSuccessMsg: (sugCount, comCount) => `🎓 <strong>既存の提案 (${sugCount}件) とコメント (${comCount}件) から「執筆者への学習アドバイスまとめ」を生成しました！</strong><br>カスタムダイアログに他のユーザーやAIからの指摘を踏まえた学習まとめを表示しました。`,
+        step4SuccessMsg: (count, isHintOnly) => isHintOnly
+          ? `💡 <strong>${count} 件の推敲ヒントコメントをドキュメントに付与しました（ヒントのみ表示モード）！</strong><br>本文の直接置換は行っていません。ドキュメント右側のヒントコメントを参考に自分で推敲してみるか、上のStep 2の「👁️ AIの修正参考例を見る」を開いて比較できます。`
+          : `✅ <strong>${count} 件の推敲提案と学習コメントをドキュメントに反映しました！</strong><br>カスタムダイアログに「🎓 執筆者への学習アドバイスまとめ」を表示しました。ドキュメント右側の提案カードおよび図・表へのコメントからも各修正理由を確認できます。`,
+        existingLearningSuccessMsg: (sugCount, comCount, resCount) => {
+          const resNote = resCount > 0 ? `および<strong>解決済みレビュー履歴 (${resCount}件)</strong> ` : '';
+          return `🎓 <strong>未解決の提案 (${sugCount}件)・コメント (${comCount}件) ${resNote}から「執筆者への学習アドバイスまとめ」を生成しました！</strong><br>カスタムダイアログにこれまでの指摘履歴を踏まえた学習まとめを表示しました。`;
+        },
         initialGenSuccess: count => `✨ <strong>アクティブなタブ上に新しい文章（${count}文字）を作成しました！</strong><br>続けて上の <strong>「🚀 推敲を実行」</strong> ボタンを押すと、この文章に対してAI推敲の提案を行います。`,
         errors: {
           enterApiKey: 'APIキーを入力してください。',
@@ -755,6 +873,8 @@
         .withSuccessHandler(cfg => {
           currentLang = cfg.lang || 'en';
           document.getElementById('selectionOnlyToggle').checked = Boolean(cfg.selectionOnly);
+          document.getElementById('hintOnlyToggle').checked = Boolean(cfg.hintOnly);
+          document.getElementById('includeResolvedToggle').checked = Boolean(cfg.includeResolved);
           applyLanguageTexts();
           resetAllSteps();
           updateApiKeyUi(cfg.hasApiKey);
@@ -784,8 +904,10 @@
 
       latestLearningSummaryPayload = {
         sourceMode: aiResult.sourceMode || 'proofread',
+        hintOnly: Boolean(aiResult.hintOnly),
         analyzedSuggestionsCount: Number(aiResult.analyzedSuggestionsCount || 0),
         analyzedCommentsCount: Number(aiResult.analyzedCommentsCount || 0),
+        analyzedResolvedCount: Number(aiResult.analyzedResolvedCount || 0),
         learningSummary: aiResult.learningSummary,
         overallFeedback: aiResult.overallFeedback || '',
         modelUsed: aiResult.modelUsed || '',
@@ -836,7 +958,11 @@
 
       document.getElementById('lblPromptSection').textContent = t.promptSection;
       document.getElementById('lblScopeToggleTitle').textContent = t.scopeToggleTitle;
+      document.getElementById('lblHintToggleTitle').textContent = t.hintToggleTitle;
+      document.getElementById('lblResolvedToggleTitle').textContent = t.resolvedToggleTitle;
       updateScopeToggleUi();
+      updateHintToggleUi();
+      updateResolvedToggleUi();
 
       document.getElementById('emptyDocBanner').innerHTML = t.emptyBanner;
       document.getElementById('lblCustomPrompt').textContent = t.customPromptLabel;
@@ -852,7 +978,8 @@
         chipGroup.appendChild(span);
       });
 
-      document.getElementById('lblBtnRun').textContent = t.btnRun;
+      const isHintOnly = document.getElementById('hintOnlyToggle').checked;
+      document.getElementById('lblBtnRun').textContent = isHintOnly ? t.btnRunHint : t.btnRun;
       document.getElementById('lblBtnGenerateLearningFromExisting').textContent = t.btnGenerateLearningFromExisting;
       document.getElementById('lblBtnGenerate').textContent = t.btnGenerate;
       document.getElementById('lblBtnAcceptAll').textContent = t.btnAcceptAll;
@@ -881,6 +1008,39 @@
       updateScopeToggleUi();
       const isSelectionOnly = document.getElementById('selectionOnlyToggle').checked;
       google.script.run.saveScopePreference(isSelectionOnly);
+    }
+
+    function updateHintToggleUi() {
+      const t = I18N[currentLang];
+      const isHintOnly = document.getElementById('hintOnlyToggle').checked;
+      const box = document.getElementById('hintToggleBox');
+      const desc = document.getElementById('lblHintToggleDesc');
+
+      box.classList.toggle('hint-mode', isHintOnly);
+      desc.textContent = isHintOnly ? t.hintDescOn : t.hintDescOff;
+      document.getElementById('lblBtnRun').textContent = isHintOnly ? t.btnRunHint : t.btnRun;
+    }
+
+    function handleHintToggleChange() {
+      updateHintToggleUi();
+      const isHintOnly = document.getElementById('hintOnlyToggle').checked;
+      google.script.run.saveHintOnlyPreference(isHintOnly);
+    }
+
+    function updateResolvedToggleUi() {
+      const t = I18N[currentLang];
+      const includeResolved = document.getElementById('includeResolvedToggle').checked;
+      const box = document.getElementById('resolvedToggleBox');
+      const desc = document.getElementById('lblResolvedToggleDesc');
+
+      box.classList.toggle('resolved-mode', includeResolved);
+      desc.textContent = includeResolved ? t.resolvedDescOn : t.resolvedDescOff;
+    }
+
+    function handleResolvedToggleChange() {
+      updateResolvedToggleUi();
+      const includeResolved = document.getElementById('includeResolvedToggle').checked;
+      google.script.run.saveIncludeResolvedPreference(includeResolved);
     }
 
     function updateApiKeyUi(hasApiKey) {
@@ -942,153 +1102,67 @@
     }
 
     /**
-     * Reloads current suggestions from the active tab first, then executes Accept All.
+     * Shared helper that reloads the active tab's current state (Step 1) and executes
+     * a bulk suggestion/comment management action (Accept All / Clear All Suggestions / Clear All Comments).
      */
+    function runBulkManagementAction(serverMethodName, extractIdsFn) {
+      clearAlerts();
+      resetAllSteps();
+      const t = I18N[currentLang];
+
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.reloading, true);
+
+      google.script.run
+        .withSuccessHandler(docData => {
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
+
+          setStepStatus(2, 'completed', t.states.skipped, false);
+          document.getElementById('stepBody2').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForAction)}</p>`;
+
+          renderStep3Result();
+          setStepStatus(3, 'completed', t.states.completed, true);
+
+          setStepStatus(4, 'active', t.states.running, true);
+
+          const targetIds = extractIdsFn(docData);
+          google.script.run
+            .withSuccessHandler(res => {
+              setBusy(false);
+              setStepStatus(4, 'completed', t.states.completed, true);
+              document.getElementById('stepBody4').innerHTML = `
+                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
+                  ${escapeHtml(res.message)}
+                </div>
+              `;
+              showInfo(res.message);
+            })
+            .withFailureHandler(err => {
+              setBusy(false);
+              setStepStatus(4, 'error', t.states.error, true);
+              showError(err);
+            })
+            [serverMethodName](targetIds, currentLang);
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true);
+          showError(err);
+        })
+        .step1_fetchDocument(false, currentLang);
+    }
+
     function handleAcceptAll() {
-      clearAlerts();
-      resetAllSteps();
-      const t = I18N[currentLang];
-
-      setBusy(true);
-      setStepStatus(1, 'active', t.states.reloading, true);
-
-      google.script.run
-        .withSuccessHandler(docData => {
-          renderStep1Result(docData);
-          setStepStatus(1, 'completed', t.states.completed, true);
-
-          setStepStatus(2, 'completed', t.states.skipped, false);
-          document.getElementById('stepBody2').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForAction)}</p>`;
-
-          renderStep3Result();
-          setStepStatus(3, 'completed', t.states.completed, true);
-
-          setStepStatus(4, 'active', t.states.running, true);
-
-          google.script.run
-            .withSuccessHandler(res => {
-              setBusy(false);
-              setStepStatus(4, 'completed', t.states.completed, true);
-              document.getElementById('stepBody4').innerHTML = `
-                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
-                  ${escapeHtml(res.message)}
-                </div>
-              `;
-              showInfo(res.message);
-            })
-            .withFailureHandler(err => {
-              setBusy(false);
-              setStepStatus(4, 'error', t.states.error, true);
-              showError(err);
-            })
-            .executeAcceptAllFromReloaded(docData.allSuggestionIds || [], currentLang);
-        })
-        .withFailureHandler(err => {
-          setBusy(false);
-          setStepStatus(1, 'error', t.states.error, true);
-          showError(err);
-        })
-        .step1_fetchDocument(false, currentLang);
+      runBulkManagementAction('executeAcceptAllFromReloaded', docData => docData.allSuggestionIds || []);
     }
 
-    /**
-     * Reloads current suggestions from the active tab first, then executes Clear All Suggestions.
-     */
     function handleClearAll() {
-      clearAlerts();
-      resetAllSteps();
-      const t = I18N[currentLang];
-
-      setBusy(true);
-      setStepStatus(1, 'active', t.states.reloading, true);
-
-      google.script.run
-        .withSuccessHandler(docData => {
-          renderStep1Result(docData);
-          setStepStatus(1, 'completed', t.states.completed, true);
-
-          setStepStatus(2, 'completed', t.states.skipped, false);
-          document.getElementById('stepBody2').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForAction)}</p>`;
-
-          renderStep3Result();
-          setStepStatus(3, 'completed', t.states.completed, true);
-
-          setStepStatus(4, 'active', t.states.running, true);
-
-          google.script.run
-            .withSuccessHandler(res => {
-              setBusy(false);
-              setStepStatus(4, 'completed', t.states.completed, true);
-              document.getElementById('stepBody4').innerHTML = `
-                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
-                  ${escapeHtml(res.message)}
-                </div>
-              `;
-              showInfo(res.message);
-            })
-            .withFailureHandler(err => {
-              setBusy(false);
-              setStepStatus(4, 'error', t.states.error, true);
-              showError(err);
-            })
-            .executeClearAllFromReloaded(docData.allSuggestionIds || [], currentLang);
-        })
-        .withFailureHandler(err => {
-          setBusy(false);
-          setStepStatus(1, 'error', t.states.error, true);
-          showError(err);
-        })
-        .step1_fetchDocument(false, currentLang);
+      runBulkManagementAction('executeClearAllFromReloaded', docData => docData.allSuggestionIds || []);
     }
 
-    /**
-     * Reloads current comments from the active tab first, then executes Clear All Comments.
-     */
     function handleClearAllComments() {
-      clearAlerts();
-      resetAllSteps();
-      const t = I18N[currentLang];
-
-      setBusy(true);
-      setStepStatus(1, 'active', t.states.reloading, true);
-
-      google.script.run
-        .withSuccessHandler(docData => {
-          renderStep1Result(docData);
-          setStepStatus(1, 'completed', t.states.completed, true);
-
-          setStepStatus(2, 'completed', t.states.skipped, false);
-          document.getElementById('stepBody2').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForAction)}</p>`;
-
-          renderStep3Result();
-          setStepStatus(3, 'completed', t.states.completed, true);
-
-          setStepStatus(4, 'active', t.states.running, true);
-
-          google.script.run
-            .withSuccessHandler(res => {
-              setBusy(false);
-              setStepStatus(4, 'completed', t.states.completed, true);
-              document.getElementById('stepBody4').innerHTML = `
-                <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
-                  ${escapeHtml(res.message)}
-                </div>
-              `;
-              showInfo(res.message);
-            })
-            .withFailureHandler(err => {
-              setBusy(false);
-              setStepStatus(4, 'error', t.states.error, true);
-              showError(err);
-            })
-            .executeClearAllCommentsFromReloaded(docData.allCommentIds || [], currentLang);
-        })
-        .withFailureHandler(err => {
-          setBusy(false);
-          setStepStatus(1, 'error', t.states.error, true);
-          showError(err);
-        })
-        .step1_fetchDocument(false, currentLang);
+      runBulkManagementAction('executeClearAllCommentsFromReloaded', docData => docData.allCommentIds || []);
     }
 
     /**
@@ -1131,9 +1205,9 @@
     }
 
     /**
-     * Generates the "Writing Coach & Learning Summary" directly from existing suggestions
-     * and comments in the Google Document (such as feedback from other users/reviewers or AI),
-     * without modifying the document. Can also be re-run separately after "Run Proofreading".
+     * Generates the "Writing Coach & Learning Summary" directly from existing suggestions,
+     * open comments, and (optionally) resolved review history in the Google Document
+     * without modifying the document.
      */
     function runLearningSummaryFromExisting() {
       clearAlerts();
@@ -1143,6 +1217,7 @@
       const customPrompt = document.getElementById('customPrompt').value.trim();
       const model = document.getElementById('modelSelect').value;
       const selectionOnly = document.getElementById('selectionOnlyToggle').checked;
+      const includeResolved = document.getElementById('includeResolvedToggle').checked;
 
       setBusy(true);
       setStepStatus(1, 'active', t.states.running, true);
@@ -1166,11 +1241,17 @@
               setStepStatus(4, 'completed', t.states.completed, true);
               document.getElementById('stepBody4').innerHTML = `
                 <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5; line-height: 1.55;">
-                  ${t.existingLearningSuccessMsg(aiResult.analyzedSuggestionsCount || 0, aiResult.analyzedCommentsCount || 0)}
+                  ${t.existingLearningSuccessMsg(
+                    aiResult.analyzedSuggestionsCount || 0,
+                    aiResult.analyzedCommentsCount || 0,
+                    aiResult.analyzedResolvedCount || 0
+                  )}
                 </div>
               `;
 
-              const totalAnalyzed = Number(aiResult.analyzedSuggestionsCount || 0) + Number(aiResult.analyzedCommentsCount || 0);
+              const totalAnalyzed = Number(aiResult.analyzedSuggestionsCount || 0) +
+                Number(aiResult.analyzedCommentsCount || 0) +
+                Number(aiResult.analyzedResolvedCount || 0);
               triggerLearningSummaryDialog(aiResult, totalAnalyzed);
             })
             .withFailureHandler(err => {
@@ -1178,7 +1259,7 @@
               setStepStatus(2, 'error', t.states.error, true);
               showError(err);
             })
-            .step2_generateLearningSummaryFromExisting(docData, customPrompt, model, currentLang);
+            .step2_generateLearningSummaryFromExisting(docData, customPrompt, model, currentLang, includeResolved);
         })
         .withFailureHandler(err => {
           setBusy(false);
@@ -1199,6 +1280,8 @@
       const customPrompt = document.getElementById('customPrompt').value.trim();
       const model = document.getElementById('modelSelect').value;
       const selectionOnly = document.getElementById('selectionOnlyToggle').checked;
+      const hintOnly = document.getElementById('hintOnlyToggle').checked;
+      const includeResolved = document.getElementById('includeResolvedToggle').checked;
 
       setBusy(true);
       setStepStatus(1, 'active', t.states.running, true);
@@ -1224,7 +1307,7 @@
           renderStep1Result(docData);
           setStepStatus(1, 'completed', t.states.completed, true);
 
-          executeStep2(docData, customPrompt, model);
+          executeStep2(docData, customPrompt, model, hintOnly, includeResolved);
         })
         .withFailureHandler(err => {
           setBusy(false);
@@ -1234,7 +1317,7 @@
         .step1_fetchDocument(selectionOnly, currentLang);
     }
 
-    function executeStep2(docData, customPrompt, model) {
+    function executeStep2(docData, customPrompt, model, hintOnly, includeResolved) {
       const t = I18N[currentLang];
       setStepStatus(2, 'active', t.states.running, true);
 
@@ -1243,17 +1326,17 @@
           renderStep2Result(aiResult);
           setStepStatus(2, 'completed', t.states.completed, true);
 
-          executeStep3(docData, aiResult);
+          executeStep3(docData, aiResult, hintOnly);
         })
         .withFailureHandler(err => {
           setBusy(false);
           setStepStatus(2, 'error', t.states.error, true);
           showError(err);
         })
-        .step2_generateProofreading(docData, customPrompt, model, currentLang);
+        .step2_generateProofreading(docData, customPrompt, model, currentLang, hintOnly, includeResolved);
     }
 
-    function executeStep3(docData, aiResult) {
+    function executeStep3(docData, aiResult, hintOnly) {
       const t = I18N[currentLang];
       setStepStatus(3, 'active', t.states.running, true);
 
@@ -1284,7 +1367,7 @@
           setStepStatus(3, 'error', t.states.error, true);
           showError(err);
         })
-        .step3_buildRequestBody(step3TargetData, aiResult, currentLang);
+        .step3_buildRequestBody(step3TargetData, aiResult, currentLang, hintOnly);
     }
 
     function executeStep4(builtData, aiResult) {
@@ -1307,13 +1390,16 @@
     }
 
     /**
-     * Renders Step 1 metrics, active tab / selection scope badge, and context.
+     * Renders Step 1 metrics, active tab / selection scope badge, resolved history ledger, and context.
      */
     function renderStep1Result(docData) {
       const t = I18N[currentLang];
       const sugCount = (docData.allSuggestionIds || docData.existingSuggestions || []).length;
       const comCount = (docData.existingComments || []).length;
-      const existingDisplayVal = comCount > 0 ? `${sugCount}/${comCount}` : `${sugCount}`;
+      const resolvedList = docData.resolvedReviews || [];
+      const resCount = resolvedList.length;
+      const activeTotal = sugCount + comCount;
+      const existingDisplayVal = `${activeTotal}/${resCount}`;
       const tablesCount = (docData.tables || []).length;
       const visualsCount = (docData.visualElements || []).length;
 
@@ -1322,11 +1408,36 @@
         : t.step1Metrics.scopeFullTab(docData.activeTabTitle);
 
       let existingHtml = '';
-      if (sugCount > 0 || comCount > 0) {
+      if (sugCount > 0 || comCount > 0 || resCount > 0) {
         existingHtml = `
           <div style="background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 11px; color: #fde68a;">
-            ${t.step1Metrics.existingAlert(sugCount, comCount)}
+            ${t.step1Metrics.existingAlert(sugCount, comCount, resCount)}
           </div>
+        `;
+      }
+
+      let resolvedLedgerHtml = '';
+      if (resCount > 0) {
+        let ledgerItemsHtml = '';
+        resolvedList.forEach((rv, idx) => {
+          const statusClass = (rv.status === 'REJECTED') ? 'rejected' : (rv.status === 'ACCEPTED' ? 'accepted' : '');
+          const anchorSnippet = rv.anchorText ? `"${rv.anchorText}"` : '';
+          ledgerItemsHtml += `
+            <div class="history-item">
+              <div style="margin-bottom: 3px;">
+                <span class="status-pill ${statusClass}">${escapeHtml(rv.type)} • ${escapeHtml(rv.status)}</span>
+                <span style="color: #94a3b8; font-size: 10px;">#${idx + 1} (${escapeHtml(rv.author || 'Reviewer')})</span>
+              </div>
+              ${anchorSnippet ? `<div style="color: #cbd5e1; margin-bottom: 2px;">Anchor: <span style="color:#fde68a;">${escapeHtml(anchorSnippet)}</span></div>` : ''}
+              <div style="color: #e2e8f0;">${escapeHtml(rv.text)}</div>
+            </div>
+          `;
+        });
+        resolvedLedgerHtml = `
+          <details class="history-ledger">
+            <summary>${escapeHtml(t.step1Metrics.resolvedLedgerSummary(resCount))}</summary>
+            <div class="history-ledger-body">${ledgerItemsHtml}</div>
+          </details>
         `;
       }
 
@@ -1361,6 +1472,7 @@
           </div>
         </div>
         ${existingHtml}
+        ${resolvedLedgerHtml}
         ${selectedPreviewHtml}
         <label class="field-label">${t.step1Metrics.contextLabel}</label>
         <pre class="json-box">${escapeHtml(docData.annotatedText)}</pre>
@@ -1368,29 +1480,58 @@
     }
 
     /**
-     * Renders Step 2 AI proofreading cards (inline text/table-cell diffs and figure/chart/table cards).
+     * Renders Step 2 AI proofreading cards (inline text/table-cell diffs or Hint-Only cards, plus figure/chart/table cards).
      */
     function renderStep2Result(aiResult) {
       const t = I18N[currentLang];
+      const isHintOnly = Boolean(aiResult.hintOnly);
       let cardsHtml = '';
 
       (aiResult.suggestions || []).forEach((s, idx) => {
-        cardsHtml += `
-          <div class="suggestion-item">
-            <div class="sug-top">
-              <span class="cat-tag">#${idx + 1} ${escapeHtml(s.category)}</span>
+        if (isHintOnly) {
+          const revealHtml = s.suggestedText
+            ? `<details class="hint-reveal">
+                 <summary>${escapeHtml(t.step2Labels.hintRevealSummary)}</summary>
+                 <div class="hint-reveal-body">
+                   <span class="diff-ins">${escapeHtml(s.suggestedText)}</span>
+                 </div>
+               </details>`
+            : '';
+          cardsHtml += `
+            <div class="suggestion-item" style="border-color: rgba(245, 158, 11, 0.35);">
+              <div class="sug-top">
+                <span class="cat-tag">#${idx + 1} ${escapeHtml(s.category)}</span>
+                <span class="cat-tag" style="background: rgba(245, 158, 11, 0.2); color: #fde68a;">${escapeHtml(t.step2Labels.hintModeBadge)}</span>
+              </div>
+              <div style="margin-bottom: 4px;">
+                <span style="font-size: 10px; color: #fcd34d; display: block; margin-bottom: 2px;">${escapeHtml(t.step2Labels.hintFlaggedLabel)}</span>
+                <span style="background: rgba(245, 158, 11, 0.16); color: #fef3c7; padding: 1px 5px; border-radius: 3px; font-weight: 600;">${escapeHtml(s.originalText)}</span>
+              </div>
+              <div class="sug-explain">
+                <div><strong>${t.step2Labels.reason}</strong> ${escapeHtml(s.reason)}</div>
+                <div style="margin-top:3px; color:#fde68a;"><strong>${t.step2Labels.learning}</strong> ${escapeHtml(s.learningPoint)}</div>
+              </div>
+              ${revealHtml}
             </div>
-            <div>
-              <span class="diff-del">${escapeHtml(s.originalText)}</span>
-              <span style="margin: 0 4px;">➔</span>
-              <span class="diff-ins">${escapeHtml(s.suggestedText)}</span>
+          `;
+        } else {
+          cardsHtml += `
+            <div class="suggestion-item">
+              <div class="sug-top">
+                <span class="cat-tag">#${idx + 1} ${escapeHtml(s.category)}</span>
+              </div>
+              <div>
+                <span class="diff-del">${escapeHtml(s.originalText)}</span>
+                <span style="margin: 0 4px;">➔</span>
+                <span class="diff-ins">${escapeHtml(s.suggestedText)}</span>
+              </div>
+              <div class="sug-explain">
+                <div><strong>${t.step2Labels.reason}</strong> ${escapeHtml(s.reason)}</div>
+                <div style="margin-top:3px; color:#93c5fd;"><strong>${t.step2Labels.learning}</strong> ${escapeHtml(s.learningPoint)}</div>
+              </div>
             </div>
-            <div class="sug-explain">
-              <div><strong>${t.step2Labels.reason}</strong> ${escapeHtml(s.reason)}</div>
-              <div style="margin-top:3px; color:#93c5fd;"><strong>${t.step2Labels.learning}</strong> ${escapeHtml(s.learningPoint)}</div>
-            </div>
-          </div>
-        `;
+          `;
+        }
       });
 
       let elementCardsHtml = '';
@@ -1487,7 +1628,7 @@
       const t = I18N[currentLang];
       document.getElementById('stepBody4').innerHTML = `
         <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5; line-height: 1.55;">
-          ${t.step4SuccessMsg(applyResult.appliedSuggestionsCount)}
+          ${t.step4SuccessMsg(applyResult.appliedSuggestionsCount, Boolean(applyResult.hintOnly))}
         </div>
       `;
     }
@@ -1559,6 +1700,8 @@
       document.getElementById('btnClearAll').disabled = isBusy;
       document.getElementById('btnClearAllComments').disabled = isBusy;
       document.getElementById('selectionOnlyToggle').disabled = isBusy;
+      document.getElementById('hintOnlyToggle').disabled = isBusy;
+      document.getElementById('includeResolvedToggle').disabled = isBusy;
     }
 
     function showError(err) {

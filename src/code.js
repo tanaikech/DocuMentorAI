@@ -1,12 +1,12 @@
 /**
  * Application Name: DocuMentor AI
  * Description: AI-Powered Proofreading & Multimodal Suggestion Coach for Google Docs
- * Version: v1.0.1
+ * Version: v1.0.2
  * Author: Kanshi Tanaike
  */
 
 const APP_NAME = 'DocuMentor AI';
-const APP_VERSION = 'v1.0.1';
+const APP_VERSION = 'v1.0.2';
 const APP_AUTHOR = 'Kanshi Tanaike';
 const APP_REPO_URL = 'https://github.com/tanaikech/DocuMentorAI';
 
@@ -14,6 +14,8 @@ const PROP_KEY_API = 'GEMINI_API_KEY';
 const PROP_KEY_MODEL = 'GEMINI_SELECTED_MODEL';
 const PROP_KEY_LANG = 'UI_LANGUAGE';
 const PROP_KEY_SELECTION_ONLY = 'PROOFREAD_SELECTION_ONLY';
+const PROP_KEY_HINT_ONLY = 'PROOFREAD_HINT_ONLY';
+const PROP_KEY_INCLUDE_RESOLVED = 'INCLUDE_RESOLVED_HISTORY';
 
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 const ALLOWED_MODELS = ['gemini-3.8-flash', 'gemini-4-argon'];
@@ -51,6 +53,9 @@ function getInitialConfig() {
   const savedModel = props.getProperty(PROP_KEY_MODEL) || DEFAULT_MODEL;
   const savedLang = props.getProperty(PROP_KEY_LANG) || DEFAULT_LANG;
   const savedSelectionOnly = props.getProperty(PROP_KEY_SELECTION_ONLY) === 'true';
+  const savedHintOnly = props.getProperty(PROP_KEY_HINT_ONLY) === 'true';
+  const rawIncludeResolved = props.getProperty(PROP_KEY_INCLUDE_RESOLVED);
+  const savedIncludeResolved = rawIncludeResolved === null ? true : rawIncludeResolved === 'true';
 
   return {
     appName: APP_NAME,
@@ -60,7 +65,9 @@ function getInitialConfig() {
     hasApiKey: Boolean(apiKey && apiKey.trim().length > 0),
     selectedModel: ALLOWED_MODELS.includes(savedModel) ? savedModel : DEFAULT_MODEL,
     lang: (savedLang === 'ja' || savedLang === 'en') ? savedLang : DEFAULT_LANG,
-    selectionOnly: savedSelectionOnly
+    selectionOnly: savedSelectionOnly,
+    hintOnly: savedHintOnly,
+    includeResolved: savedIncludeResolved
   };
 }
 
@@ -125,8 +132,56 @@ function saveScopePreference(selectionOnly) {
 }
 
 /**
+ * Saves the Hint-Only mode toggle preference in UserProperties.
+ *
+ * @param {boolean} hintOnly Whether to post coaching hints as comments without inline rewrites.
+ * @return {Object} Status object.
+ */
+function saveHintOnlyPreference(hintOnly) {
+  const isHint = Boolean(hintOnly);
+  PropertiesService.getUserProperties().setProperty(PROP_KEY_HINT_ONLY, String(isHint));
+  return { success: true, hintOnly: isHint };
+}
+
+/**
+ * Saves the Include Resolved History toggle preference in UserProperties.
+ *
+ * @param {boolean} includeResolved Whether to include resolved suggestions and comments.
+ * @return {Object} Status object.
+ */
+function saveIncludeResolvedPreference(includeResolved) {
+  const isInc = Boolean(includeResolved);
+  PropertiesService.getUserProperties().setProperty(PROP_KEY_INCLUDE_RESOLVED, String(isInc));
+  return { success: true, includeResolved: isInc };
+}
+
+/**
+ * Safely resolves the active tab metadata from a DocumentApp Document instance.
+ *
+ * @param {GoogleAppsScript.Document.Document} doc Active Document instance.
+ * @return {Object} { tabId, tabTitle, activeTab }
+ */
+function getActiveTabInfo_(doc) {
+  let tabId = null;
+  let tabTitle = '';
+  let activeTab = null;
+  try {
+    if (doc && typeof doc.getActiveTab === 'function') {
+      activeTab = doc.getActiveTab();
+      if (activeTab) {
+        tabId = activeTab.getId() || null;
+        tabTitle = activeTab.getTitle() || '';
+      }
+    }
+  } catch (e) {
+    // Fallback if getActiveTab is unavailable in older environments
+  }
+  return { tabId, tabTitle, activeTab };
+}
+
+/**
  * ============================================================================
- * STEP 1: Fetch Document Content, Active Tab / Selection, Tables, Figures, and Suggestions
+ * STEP 1: Fetch Document Content, Active Tab / Selection, Tables, Figures, and Review History
  * ============================================================================
  */
 
@@ -144,26 +199,12 @@ function step1_fetchDocument(selectionOnly, lang, allowFallbackToFullTab) {
   let isSelectionOnly = Boolean(selectionOnly);
   const doc = DocumentApp.getActiveDocument();
   const docId = doc.getId();
-
-  // Resolve the currently active tab in Google Docs
-  let activeTabId = null;
-  let activeTabTitle = '';
-  try {
-    if (typeof doc.getActiveTab === 'function') {
-      const activeTab = doc.getActiveTab();
-      if (activeTab) {
-        activeTabId = activeTab.getId();
-        activeTabTitle = activeTab.getTitle() || '';
-      }
-    }
-  } catch (e) {
-    // Fallback if getActiveTab is unavailable in older environments
-  }
+  const tabInfo = getActiveTabInfo_(doc);
 
   // Extract user selection descriptors when selectionOnly mode is enabled
   let selectionDescriptors = null;
   if (isSelectionOnly) {
-    selectionDescriptors = extractSelectionDescriptors_(doc);
+    selectionDescriptors = extractSelectionDescriptors_(doc, tabInfo.activeTab);
     if (!selectionDescriptors || selectionDescriptors.length === 0) {
       if (allowFallbackToFullTab) {
         isSelectionOnly = false;
@@ -179,8 +220,8 @@ function step1_fetchDocument(selectionOnly, lang, allowFallbackToFullTab) {
 
   const docJson = fetchRawDocumentJson_(docId);
   return parseDocumentStructure_(docJson, {
-    activeTabId,
-    activeTabTitle,
+    activeTabId: tabInfo.tabId,
+    activeTabTitle: tabInfo.tabTitle,
     selectionOnly: isSelectionOnly,
     selectionDescriptors,
     isJa
@@ -192,9 +233,10 @@ function step1_fetchDocument(selectionOnly, lang, allowFallbackToFullTab) {
  * so that they can be accurately mapped to Docs API character indices and elements.
  *
  * @param {GoogleAppsScript.Document.Document} doc Active Document instance.
+ * @param {Object=} activeTab Optional active tab object from getActiveTabInfo_.
  * @return {Array<Object>} List of selection descriptors.
  */
-function extractSelectionDescriptors_(doc) {
+function extractSelectionDescriptors_(doc, activeTab) {
   const selection = doc.getSelection();
   if (!selection) return [];
 
@@ -204,9 +246,9 @@ function extractSelectionDescriptors_(doc) {
   // Resolve active tab body for top-level index calculation
   let body = null;
   try {
-    const activeTab = typeof doc.getActiveTab === 'function' ? doc.getActiveTab() : null;
-    if (activeTab && typeof activeTab.asDocumentTab === 'function') {
-      body = activeTab.asDocumentTab().getBody();
+    const tabObj = activeTab || (typeof doc.getActiveTab === 'function' ? doc.getActiveTab() : null);
+    if (tabObj && typeof tabObj.asDocumentTab === 'function') {
+      body = tabObj.asDocumentTab().getBody();
     }
   } catch (e) {}
   if (!body) {
@@ -464,6 +506,43 @@ function resolveTargetDocumentTab_(docJson, preferredTabId) {
 }
 
 /**
+ * Resolves the effective tab list and comment anchor mapping for a target tab ID.
+ *
+ * @param {Object} docJson Raw document resource from documents.get.
+ * @param {string=} targetTabId Optional tabId to scope extraction.
+ * @return {Object} { allTabs, effectiveTabs, tabAnchorMap, hasTabAnchorMapping }
+ */
+function getEffectiveTabsAndAnchors_(docJson, targetTabId) {
+  const allTabs = flattenDocumentTabs_(docJson.tabs || []);
+  const tabAnchorMap = new Map();
+  let hasTabAnchorMapping = false;
+  let effectiveTabs = [];
+
+  if (allTabs.length > 0) {
+    const matchedTabs = targetTabId
+      ? allTabs.filter(t => t.tabProperties && t.tabProperties.tabId === targetTabId)
+      : allTabs;
+    effectiveTabs = matchedTabs.length > 0 ? matchedTabs : [allTabs[0]];
+
+    effectiveTabs.forEach(t => {
+      if (t.documentTab && t.documentTab.commentAnchors) {
+        hasTabAnchorMapping = true;
+        const anchors = Array.isArray(t.documentTab.commentAnchors)
+          ? t.documentTab.commentAnchors
+          : Object.values(t.documentTab.commentAnchors);
+        anchors.forEach(a => {
+          if (a && a.anchorId) {
+            tabAnchorMap.set(a.anchorId, a.ranges || []);
+          }
+        });
+      }
+    });
+  }
+
+  return { allTabs, effectiveTabs, tabAnchorMap, hasTabAnchorMapping };
+}
+
+/**
  * Collects active inline suggestion IDs from the target tab (or whole document)
  * and active (non-deleted, non-resolved) comment thread IDs.
  *
@@ -476,40 +555,27 @@ function collectAllSuggestionAndCommentIds_(docJson, targetTabId) {
   const aiCommentIdSet = new Set();
   const allCommentIdSet = new Set();
 
-  // Build set of anchorIds belonging to targetTabId when commentAnchors are present
-  const allowedAnchorIds = new Set();
-  let hasTabAnchorMapping = false;
-  const allTabs = flattenDocumentTabs_(docJson.tabs || []);
-  if (allTabs.length > 0 && targetTabId) {
-    const matchedTabs = allTabs.filter(t => t.tabProperties && t.tabProperties.tabId === targetTabId);
-    const effectiveTabsForAnchors = matchedTabs.length > 0 ? matchedTabs : [allTabs[0]];
-    effectiveTabsForAnchors.forEach(t => {
-      if (t.documentTab && t.documentTab.commentAnchors) {
-        hasTabAnchorMapping = true;
-        const anchors = Array.isArray(t.documentTab.commentAnchors)
-          ? t.documentTab.commentAnchors
-          : Object.values(t.documentTab.commentAnchors);
-        anchors.forEach(a => {
-          if (a && a.anchorId) {
-            allowedAnchorIds.add(a.anchorId);
-          }
-        });
-      }
-    });
-  }
+  const { allTabs, effectiveTabs, tabAnchorMap, hasTabAnchorMapping } = getEffectiveTabsAndAnchors_(docJson, targetTabId);
 
-  const collectFromCommentsArray = (arr, ignoreTabAnchorFilter) => {
-    if (!Array.isArray(arr)) return;
-    arr.forEach(c => {
-      if (!c || !c.commentId || c.deleted || c.status === 'RESOLVED') return;
+  const collectFromCommentsArray = (container, ignoreTabAnchorFilter) => {
+    if (!container || typeof container !== 'object') return;
+    const entries = Array.isArray(container)
+      ? container.map((item, idx) => [String(idx), item])
+      : Object.entries(container);
+    entries.forEach(([entryKey, c]) => {
+      if (!c || typeof c !== 'object') return;
+      const commentId = c.commentId || (!Array.isArray(container) ? entryKey : '');
+      if (!commentId || c.deleted || c.status === 'RESOLVED' || c.resolved === true) return;
       if (c.headPost && c.headPost.deleted) return;
-      if (!ignoreTabAnchorFilter && hasTabAnchorMapping && c.anchorId && allowedAnchorIds.size > 0) {
-        if (!allowedAnchorIds.has(c.anchorId)) return;
+      if (!ignoreTabAnchorFilter && hasTabAnchorMapping && c.anchorId && tabAnchorMap.size > 0) {
+        if (!tabAnchorMap.has(c.anchorId)) return;
       }
-      allCommentIdSet.add(c.commentId);
-      const headText = (c.headPost && c.headPost.content) ? c.headPost.content : '';
+      allCommentIdSet.add(commentId);
+      const headText = (c.headPost && c.headPost.content)
+        ? (typeof c.headPost.content === 'string' ? c.headPost.content : (c.headPost.content.text || ''))
+        : '';
       if (headText.includes('DocuMentor AI') || headText.includes('AI推敲コーチ')) {
-        aiCommentIdSet.add(c.commentId);
+        aiCommentIdSet.add(commentId);
       }
     });
   };
@@ -560,11 +626,6 @@ function collectAllSuggestionAndCommentIds_(docJson, targetTabId) {
   }
 
   if (allTabs.length > 0) {
-    const tabsToScan = targetTabId
-      ? allTabs.filter(t => t.tabProperties && t.tabProperties.tabId === targetTabId)
-      : allTabs;
-    const effectiveTabs = tabsToScan.length > 0 ? tabsToScan : [allTabs[0]];
-
     effectiveTabs.forEach(t => {
       if (t.documentTab) {
         collectFromCommentsArray(t.documentTab.comments, true);
@@ -585,49 +646,40 @@ function collectAllSuggestionAndCommentIds_(docJson, targetTabId) {
 }
 
 /**
- * Extracts all active (unresolved and non-deleted) comments and their replies
- * from the document or target tab, including standalone comments (such as Figure/Table
- * comments created via insertComment and reviewer comments) as well as replies
- * attached to inline suggestions (SuggestionThread).
+ * Extracts both active (unresolved) comment/suggestion threads and resolved
+ * (RESOLVED / ACCEPTED / REJECTED) review history from the document or target tab.
  *
  * @param {Object} docJson Raw document resource from documents.get.
- * @param {string=} targetTabId Optional tabId to scope comment extraction.
- * @return {Array<Object>} List of structured active comment threads.
+ * @param {string=} targetTabId Optional tabId to scope extraction.
+ * @param {Array<string>=} activeSuggestionIds Active inline suggestion IDs currently in body.content.
+ * @return {Object} { activeComments: Array<Object>, resolvedReviews: Array<Object> }
  */
-function extractActiveComments_(docJson, targetTabId) {
-  const commentsMap = new Map();
+function extractCommentAndSuggestionThreads_(docJson, targetTabId, activeSuggestionIds) {
+  const activeCommentsMap = new Map();
+  const resolvedReviewsMap = new Map();
+  const activeSugIdSet = new Set(Array.isArray(activeSuggestionIds) ? activeSuggestionIds : []);
 
-  // Map anchorId -> ranges from target tab's commentAnchors if available
-  const tabAnchorMap = new Map();
-  let hasTabAnchorMapping = false;
-  const allTabs = flattenDocumentTabs_(docJson.tabs || []);
-  if (allTabs.length > 0) {
-    const tabsToScan = targetTabId
-      ? allTabs.filter(t => t.tabProperties && t.tabProperties.tabId === targetTabId)
-      : allTabs;
-    const effectiveTabs = tabsToScan.length > 0 ? tabsToScan : [allTabs[0]];
-    effectiveTabs.forEach(t => {
-      if (t.documentTab && t.documentTab.commentAnchors) {
-        hasTabAnchorMapping = true;
-        const anchors = Array.isArray(t.documentTab.commentAnchors)
-          ? t.documentTab.commentAnchors
-          : Object.values(t.documentTab.commentAnchors);
-        anchors.forEach(a => {
-          if (a && a.anchorId) {
-            tabAnchorMap.set(a.anchorId, a.ranges || []);
-          }
-        });
-      }
-    });
-  }
+  const { allTabs, effectiveTabs, tabAnchorMap, hasTabAnchorMapping } = getEffectiveTabsAndAnchors_(docJson, targetTabId);
+
+  const extractPostText = post => {
+    if (!post) return '';
+    if (typeof post.content === 'string') return post.content.trim();
+    if (post.content && typeof post.content.text === 'string') return post.content.text.trim();
+    if (typeof post.text === 'string') return post.text.trim();
+    return '';
+  };
 
   const processCommentsContainer = (container, isSuggestionThreadContainer, ignoreTabAnchorFilter) => {
-    if (!container) return;
-    const list = Array.isArray(container) ? container : Object.values(container);
-    list.forEach(c => {
+    if (!container || typeof container !== 'object') return;
+    const entries = Array.isArray(container)
+      ? container.map((item, idx) => [String(idx), item])
+      : Object.entries(container);
+
+    entries.forEach(([entryKey, c]) => {
       if (!c || typeof c !== 'object') return;
-      const commentId = c.commentId || c.suggestionId || c.id || '';
-      if (!commentId || c.deleted || c.status === 'RESOLVED') return;
+      const commentId = c.commentId || c.suggestionId || c.id || (!Array.isArray(container) ? entryKey : '');
+      if (!commentId || c.deleted) return;
+      if (c.headPost && c.headPost.deleted) return;
 
       if (
         !isSuggestionThreadContainer &&
@@ -640,52 +692,129 @@ function extractActiveComments_(docJson, targetTabId) {
         return;
       }
 
+      const linkedSuggestionId = isSuggestionThreadContainer
+        ? (c.suggestionId || commentId)
+        : (c.suggestionId || '');
+
       let headContent = '';
       let headAuthor = '';
       if (c.headPost && !c.headPost.deleted) {
-        headContent = typeof c.headPost.content === 'string' ? c.headPost.content.trim() : '';
+        headContent = extractPostText(c.headPost);
         if (c.headPost.author && c.headPost.author.displayName) {
           headAuthor = c.headPost.author.displayName;
         }
-      } else if (typeof c.content === 'string') {
-        headContent = c.content.trim();
+      } else {
+        headContent = extractPostText(c);
+        if (c.author && c.author.displayName) {
+          headAuthor = c.author.displayName;
+        }
       }
 
       const rawReplies = Array.isArray(c.replies)
         ? c.replies
-        : (Array.isArray(c.posts) ? c.posts : []);
+        : (Array.isArray(c.posts)
+            ? c.posts
+            : (Array.isArray(c.commentHistory)
+                ? c.commentHistory
+                : (Array.isArray(c.suggestionHistory) ? c.suggestionHistory : [])));
       const replies = [];
+      let detectedResolutionAction = '';
+
       rawReplies.forEach(r => {
         if (!r || r.deleted) return;
-        const rContent = typeof r.content === 'string' ? r.content.trim() : '';
+        const rAction = r.suggestionAction || r.commentAction || r.action || '';
+        if (rAction === 'ACCEPT' || rAction === 'ACCEPTED') {
+          detectedResolutionAction = 'ACCEPTED';
+        } else if (rAction === 'REJECT' || rAction === 'REJECTED') {
+          detectedResolutionAction = 'REJECTED';
+        } else if (rAction === 'RESOLVE' || rAction === 'RESOLVED') {
+          if (!detectedResolutionAction) detectedResolutionAction = 'RESOLVED';
+        } else if (rAction === 'REOPEN' || rAction === 'REOPENED') {
+          detectedResolutionAction = '';
+        }
+
+        const rContent = extractPostText(r);
         if (!rContent) return;
         const rAuthor = (r.author && r.author.displayName) ? r.author.displayName : '';
+        if (!headAuthor && rAuthor) {
+          headAuthor = rAuthor;
+        }
         replies.push({
           author: rAuthor,
-          content: rContent
+          content: rContent,
+          action: rAction
         });
       });
 
-      // For SuggestionThread entries (docJson.suggestions), only include if there are replies
-      if (isSuggestionThreadContainer && replies.length === 0) return;
-
       const quotedText = c.plainTextQuote
         ? String(c.plainTextQuote).trim()
-        : ((c.quotedFileContent && c.quotedFileContent.value)
-            ? String(c.quotedFileContent.value).trim()
-            : (c.summaryText ? String(c.summaryText).trim() : ''));
+        : (c.anchorText
+            ? String(c.anchorText).trim()
+            : ((c.quotedFileContent && c.quotedFileContent.value)
+                ? String(c.quotedFileContent.value).trim()
+                : (c.summaryText ? String(c.summaryText).trim() : '')));
 
-      if (!headContent && replies.length === 0) return;
+      const summaryText = c.summaryText ? String(c.summaryText).trim() : '';
 
-      commentsMap.set(commentId, {
-        commentId: commentId,
-        anchorId: c.anchorId || '',
-        suggestionId: isSuggestionThreadContainer ? (c.suggestionId || commentId) : (c.suggestionId || ''),
-        author: headAuthor,
-        content: headContent,
-        quotedText: quotedText,
-        replies: replies
-      });
+      // Determine whether this thread is resolved (hidden from active canvas) or active
+      let isResolved = false;
+      let resolutionState = 'OPEN';
+      const rawStatus = String(c.status || '').toUpperCase();
+
+      if (rawStatus === 'RESOLVED' || rawStatus === 'ACCEPTED' || rawStatus === 'REJECTED' || c.resolved === true) {
+        isResolved = true;
+        resolutionState = detectedResolutionAction ||
+          (rawStatus === 'ACCEPTED' || rawStatus === 'REJECTED'
+            ? rawStatus
+            : (isSuggestionThreadContainer ? 'RESOLVED_SUGGESTION' : 'RESOLVED'));
+      } else if (isSuggestionThreadContainer && linkedSuggestionId && !activeSugIdSet.has(linkedSuggestionId)) {
+        // Suggestion thread is no longer present in active inline suggestions in body.content (already accepted or rejected)
+        isResolved = true;
+        resolutionState = detectedResolutionAction || 'RESOLVED_SUGGESTION';
+      } else if (detectedResolutionAction === 'ACCEPTED' || detectedResolutionAction === 'REJECTED' || detectedResolutionAction === 'RESOLVED') {
+        isResolved = true;
+        resolutionState = detectedResolutionAction;
+      }
+
+      const threadType = isSuggestionThreadContainer || Boolean(linkedSuggestionId) ? 'SUGGESTION' : 'COMMENT';
+      const combinedText = [headContent || summaryText]
+        .concat(replies.map(r => (r.author ? `${r.author}: ${r.content}` : r.content)))
+        .filter(Boolean)
+        .join(' | ');
+
+      if (isResolved) {
+        // Include resolved entry if it contains any comment text, reply, or suggestion summary
+        if (!headContent && !quotedText && !summaryText && replies.length === 0) return;
+        resolvedReviewsMap.set(commentId, {
+          commentId: commentId,
+          anchorId: c.anchorId || '',
+          suggestionId: linkedSuggestionId,
+          threadType: threadType,
+          type: threadType,
+          resolutionState: resolutionState,
+          status: resolutionState,
+          author: headAuthor,
+          content: headContent || summaryText,
+          text: combinedText || summaryText || quotedText,
+          quotedText: quotedText,
+          anchorText: quotedText,
+          summaryText: summaryText,
+          replies: replies
+        });
+      } else {
+        // Active thread
+        if (isSuggestionThreadContainer && replies.length === 0 && !headContent) return;
+        if (!headContent && replies.length === 0) return;
+        activeCommentsMap.set(commentId, {
+          commentId: commentId,
+          anchorId: c.anchorId || '',
+          suggestionId: linkedSuggestionId,
+          author: headAuthor,
+          content: headContent,
+          quotedText: quotedText,
+          replies: replies
+        });
+      }
     });
   };
 
@@ -693,10 +822,6 @@ function extractActiveComments_(docJson, targetTabId) {
   processCommentsContainer(docJson.suggestions, true, true);
 
   if (allTabs.length > 0) {
-    const tabsToScan = targetTabId
-      ? allTabs.filter(t => t.tabProperties && t.tabProperties.tabId === targetTabId)
-      : allTabs;
-    const effectiveTabs = tabsToScan.length > 0 ? tabsToScan : [allTabs[0]];
     effectiveTabs.forEach(t => {
       if (t.documentTab) {
         if (t.documentTab.comments) {
@@ -709,7 +834,23 @@ function extractActiveComments_(docJson, targetTabId) {
     });
   }
 
-  return Array.from(commentsMap.values());
+  return {
+    activeComments: Array.from(activeCommentsMap.values()),
+    resolvedReviews: Array.from(resolvedReviewsMap.values())
+  };
+}
+
+/**
+ * Extracts all active (unresolved and non-deleted) comments and their replies
+ * from the document or target tab.
+ *
+ * @param {Object} docJson Raw document resource from documents.get.
+ * @param {string=} targetTabId Optional tabId to scope comment extraction.
+ * @param {Array<string>=} activeSuggestionIds Optional active inline suggestion IDs.
+ * @return {Array<Object>} List of structured active comment threads.
+ */
+function extractActiveComments_(docJson, targetTabId, activeSuggestionIds) {
+  return extractCommentAndSuggestionThreads_(docJson, targetTabId, activeSuggestionIds).activeComments;
 }
 
 /**
@@ -1172,7 +1313,9 @@ function parseDocumentStructure_(docJson, options) {
   }
 
   const collectedIds = collectAllSuggestionAndCommentIds_(docJson, activeTabId);
-  const activeCommentsList = extractActiveComments_(docJson, activeTabId);
+  const extractedThreads = extractCommentAndSuggestionThreads_(docJson, activeTabId, collectedIds.suggestionIds);
+  const activeCommentsList = extractedThreads.activeComments;
+  const resolvedReviewsList = extractedThreads.resolvedReviews;
 
   // Attach any suggestion-linked comment replies directly to their corresponding suggestion entry
   activeCommentsList.forEach(c => {
@@ -1217,7 +1360,8 @@ function parseDocumentStructure_(docJson, options) {
     allTablesCount === 0 &&
     allVisualsCount === 0 &&
     existingSuggestionsList.length === 0 &&
-    activeCommentsList.length === 0;
+    activeCommentsList.length === 0 &&
+    resolvedReviewsList.length === 0;
 
   return {
     documentId: docJson.documentId,
@@ -1232,6 +1376,7 @@ function parseDocumentStructure_(docJson, options) {
     editableBlocks: targetEditableBlocks,
     existingSuggestions: existingSuggestionsList,
     existingComments: activeCommentsList,
+    resolvedReviews: resolvedReviewsList,
     allSuggestionIds: collectedIds.suggestionIds,
     allAiCommentIds: collectedIds.aiCommentIds,
     allCommentIds: collectedIds.allCommentIds,
@@ -1259,13 +1404,9 @@ function executeAcceptAllFromReloaded(reloadedSuggestionIds, lang) {
   let suggestionIds = Array.isArray(reloadedSuggestionIds) ? reloadedSuggestionIds : [];
 
   if (suggestionIds.length === 0) {
-    let activeTabId = null;
-    try {
-      const t = typeof doc.getActiveTab === 'function' ? doc.getActiveTab() : null;
-      if (t) activeTabId = t.getId();
-    } catch (e) {}
+    const tabInfo = getActiveTabInfo_(doc);
     const docJson = fetchRawDocumentJson_(docId);
-    suggestionIds = collectAllSuggestionAndCommentIds_(docJson, activeTabId).suggestionIds;
+    suggestionIds = collectAllSuggestionAndCommentIds_(docJson, tabInfo.tabId).suggestionIds;
   }
 
   if (suggestionIds.length === 0) {
@@ -1306,14 +1447,9 @@ function executeClearAllFromReloaded(reloadedSuggestionIds, lang) {
   let suggestionIds = Array.isArray(reloadedSuggestionIds) ? reloadedSuggestionIds : [];
 
   if (suggestionIds.length === 0) {
-    let activeTabId = null;
-    try {
-      const t = typeof doc.getActiveTab === 'function' ? doc.getActiveTab() : null;
-      if (t) activeTabId = t.getId();
-    } catch (e) {}
+    const tabInfo = getActiveTabInfo_(doc);
     const docJson = fetchRawDocumentJson_(docId);
-    const collected = collectAllSuggestionAndCommentIds_(docJson, activeTabId);
-    suggestionIds = collected.suggestionIds;
+    suggestionIds = collectAllSuggestionAndCommentIds_(docJson, tabInfo.tabId).suggestionIds;
   }
 
   if (suggestionIds.length === 0) {
@@ -1340,8 +1476,8 @@ function executeClearAllFromReloaded(reloadedSuggestionIds, lang) {
 }
 
 /**
- * Deletes all active comments (including Figure/Table review comments created via insertComment
- * and other active comments in the tab) using the freshly reloaded comment IDs.
+ * Deletes all active comments (including Figure/Table review comments and Hint-Only comments
+ * created via insertComment) using the freshly reloaded comment IDs.
  *
  * @param {Array<string>} reloadedCommentIds Comment IDs reloaded in Step 1.
  * @param {string} lang Current UI language ('en' or 'ja').
@@ -1353,14 +1489,9 @@ function executeClearAllCommentsFromReloaded(reloadedCommentIds, lang) {
   let commentIds = Array.isArray(reloadedCommentIds) ? reloadedCommentIds : [];
 
   if (commentIds.length === 0) {
-    let activeTabId = null;
-    try {
-      const t = typeof doc.getActiveTab === 'function' ? doc.getActiveTab() : null;
-      if (t) activeTabId = t.getId();
-    } catch (e) {}
+    const tabInfo = getActiveTabInfo_(doc);
     const docJson = fetchRawDocumentJson_(docId);
-    const collected = collectAllSuggestionAndCommentIds_(docJson, activeTabId);
-    commentIds = collected.allCommentIds;
+    commentIds = collectAllSuggestionAndCommentIds_(docJson, tabInfo.tabId).allCommentIds;
   }
 
   if (commentIds.length === 0) {
@@ -1387,8 +1518,8 @@ function executeClearAllCommentsFromReloaded(reloadedCommentIds, lang) {
 }
 
 /**
- * Executes batchUpdate for accept/reject/deleteComment requests.
- * Falls back to individual execution if a linked suggestion ID in the batch was already resolved.
+ * Executes batchUpdate for accept/reject/deleteComment/insertComment requests.
+ * Falls back to individual execution if a single item in the batch fails.
  *
  * @param {string} docId Document ID.
  * @param {Array<Object>} requests List of batchUpdate requests.
@@ -1468,15 +1599,11 @@ function generateInitialArticle(customPrompt, modelName, lang) {
 
   const doc = DocumentApp.getActiveDocument();
   const docId = doc.getId();
-  let activeTabId = '';
-  try {
-    const activeTab = typeof doc.getActiveTab === 'function' ? doc.getActiveTab() : null;
-    if (activeTab) activeTabId = activeTab.getId() || '';
-  } catch (e) {}
+  const tabInfo = getActiveTabInfo_(doc);
 
   const locationObj = { index: 1 };
-  if (activeTabId) {
-    locationObj.tabId = activeTabId;
+  if (tabInfo.tabId) {
+    locationObj.tabId = tabInfo.tabId;
   }
 
   const batchRequest = {
@@ -1506,38 +1633,35 @@ function generateInitialArticle(customPrompt, modelName, lang) {
  * STEP 2: Generate Proofreading, Coaching & Learning Advice Summary via Gemini
  * ============================================================================
  */
-function step2_generateProofreading(docData, customPrompt, modelName, lang) {
-  const isJa = lang === 'ja';
 
-  if (!docData || docData.isEmpty) {
-    throw new Error(isJa
-      ? 'ドキュメントに推敲対象の文章や要素が存在しません。'
-      : 'There is no content in the document to proofread.'
-    );
-  }
-
-  const apiKey = getRequiredApiKey_(isJa);
-  const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
-  const promptData = buildProofreadingPromptAndSchema_(docData, customPrompt, isJa);
-
+/**
+ * Shared helper that uploads the manuscript Markdown file and any embedded visual images
+ * in parallel to the Gemini File API, executes structured JSON generation, and guarantees
+ * immediate File API cleanup in the `finally` block.
+ *
+ * @param {string} model Selected Gemini model identifier.
+ * @param {string} apiKey Gemini API key.
+ * @param {Object} promptData { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
+ * @param {Array<Object>} visualElements Visual elements to upload alongside the manuscript.
+ * @param {string} manuscriptLabelPrefix Label prefix for the attached manuscript file part.
+ * @return {Object} Parsed JSON response from Gemini.
+ */
+function executeMultimodalJsonGeneration_(model, apiKey, promptData, visualElements, manuscriptLabelPrefix) {
   const userParts = [];
   let uploadedFiles = [];
-  let parsedResult;
 
   try {
     uploadedFiles = uploadManuscriptAndVisualsToGeminiFiles_(
       promptData.manuscriptFileContent,
       promptData.manuscriptFileName,
-      docData.visualElements,
+      visualElements,
       apiKey
     );
 
     const manuscriptFile = uploadedFiles.find(uf => uf.kind === 'MANUSCRIPT');
     if (manuscriptFile) {
       userParts.push({
-        text: isJa
-          ? `[添付原稿ファイル (${manuscriptFile.title})]`
-          : `[Attached Manuscript File (${manuscriptFile.title})]`
+        text: `[${manuscriptLabelPrefix} (${manuscriptFile.title})]`
       });
       userParts.push({
         fileData: {
@@ -1576,7 +1700,7 @@ function step2_generateProofreading(docData, customPrompt, modelName, lang) {
 
     const rawJsonText = callGeminiApiRaw_(model, apiKey, payload);
     try {
-      parsedResult = JSON.parse(rawJsonText);
+      return JSON.parse(rawJsonText);
     } catch (e) {
       throw new Error('Failed to parse JSON response from Gemini: ' + rawJsonText);
     }
@@ -1585,9 +1709,47 @@ function step2_generateProofreading(docData, customPrompt, modelName, lang) {
       deleteGeminiFiles_(uploadedFiles, apiKey);
     }
   }
+}
+
+/**
+ * Generates proofreading suggestions (or Hint-Only comments), multimodal figure/table
+ * review comments, and the Writing Coach & Learning Summary via Gemini.
+ *
+ * @param {Object} docData Parsed document structure from Step 1.
+ * @param {string} customPrompt Optional user instruction.
+ * @param {string} modelName Selected Gemini model name.
+ * @param {string} lang Current UI language ('en' or 'ja').
+ * @param {boolean=} hintOnly Whether Hint-Only Mode is enabled.
+ * @param {boolean=} includeResolved Whether to include resolved review history in context.
+ * @return {Object} Structured proofreading and coaching output.
+ */
+function step2_generateProofreading(docData, customPrompt, modelName, lang, hintOnly, includeResolved) {
+  const isJa = lang === 'ja';
+  const isHintOnly = Boolean(hintOnly);
+  const isIncludeResolved = includeResolved !== undefined ? Boolean(includeResolved) : true;
+
+  if (!docData || docData.isEmpty) {
+    throw new Error(isJa
+      ? 'ドキュメントに推敲対象の文章や要素が存在しません。'
+      : 'There is no content in the document to proofread.'
+    );
+  }
+
+  const apiKey = getRequiredApiKey_(isJa);
+  const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
+  const promptData = buildProofreadingPromptAndSchema_(docData, customPrompt, isJa, isHintOnly, isIncludeResolved);
+
+  const parsedResult = executeMultimodalJsonGeneration_(
+    model,
+    apiKey,
+    promptData,
+    docData.visualElements,
+    isJa ? '添付原稿ファイル' : 'Attached Manuscript File'
+  );
 
   return {
     modelUsed: model,
+    hintOnly: isHintOnly,
     overallFeedback: parsedResult.overallFeedback || '',
     learningSummary: parsedResult.learningSummary || {
       revisionsDigest: '',
@@ -1602,18 +1764,20 @@ function step2_generateProofreading(docData, customPrompt, modelName, lang) {
 
 /**
  * Generates a "🎓 Writing Coach & Learning Summary" directly from the existing
- * inline suggestions and comments already present in the Google Document (such as
- * review suggestions and comments left by other users/collaborators or previous AI runs),
+ * inline suggestions, active comments, and optionally resolved review history
+ * (accepted/rejected suggestions and resolved comments) in the Google Document,
  * without modifying the document.
  *
  * @param {Object} docData Parsed document structure from Step 1.
  * @param {string} customPrompt Optional user instruction.
  * @param {string} modelName Selected Gemini model name.
  * @param {string} lang Current UI language ('en' or 'ja').
+ * @param {boolean=} includeResolved Whether to include resolved review history.
  * @return {Object} Structured learning summary and analyzed review items.
  */
-function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelName, lang) {
+function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelName, lang, includeResolved) {
   const isJa = lang === 'ja';
+  const isIncludeResolved = includeResolved !== undefined ? Boolean(includeResolved) : true;
 
   if (!docData) {
     throw new Error(isJa
@@ -1624,88 +1788,40 @@ function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelN
 
   const existingSuggestions = Array.isArray(docData.existingSuggestions) ? docData.existingSuggestions : [];
   const existingComments = Array.isArray(docData.existingComments) ? docData.existingComments : [];
+  const allResolvedReviews = Array.isArray(docData.resolvedReviews) ? docData.resolvedReviews : [];
+  const resolvedReviews = isIncludeResolved ? allResolvedReviews : [];
 
-  if (existingSuggestions.length === 0 && existingComments.length === 0) {
+  if (existingSuggestions.length === 0 && existingComments.length === 0 && resolvedReviews.length === 0) {
+    if (!isIncludeResolved && allResolvedReviews.length > 0) {
+      throw new Error(isJa
+        ? `未解決の提案・コメントはありませんが、解決済みのレビュー履歴が ${allResolvedReviews.length} 件存在します。「📜 解決済みの提案・コメント履歴も含める」スイッチをオンにして実行してください。`
+        : `No active (unresolved) suggestions or comments were found, but ${allResolvedReviews.length} resolved review item(s) exist in the document history. Please turn ON "📜 Include Resolved Review History" to generate a Learning Summary from resolved items.`
+      );
+    }
     throw new Error(isJa
-      ? 'アクティブなタブ内に既存の提案（サジェスト）やコメントが見つかりませんでした。他のユーザーからの提案・コメントが含まれるドキュメントで実行するか、先に「🚀 推敲を実行」を押してください。'
-      : 'No existing suggestions or comments were found in the active tab. Please run this on a document containing suggestions or comments from reviewers, or click "🚀 Run Proofreading" first.'
+      ? 'アクティブなタブ内に提案（サジェスト）やコメント（解決済み履歴を含む）が見つかりませんでした。他のユーザーからの提案・コメントが含まれるドキュメントで実行するか、先に「🚀 推敲を実行」を押してください。'
+      : 'No suggestions or comments (active or resolved) were found in the active tab. Please run this on a document containing suggestions or comments from reviewers, or click "🚀 Run Proofreading" first.'
     );
   }
 
   const apiKey = getRequiredApiKey_(isJa);
   const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
-  const promptData = buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa);
+  const promptData = buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa, isIncludeResolved);
 
-  const userParts = [];
-  let uploadedFiles = [];
-  let parsedResult;
-
-  try {
-    uploadedFiles = uploadManuscriptAndVisualsToGeminiFiles_(
-      promptData.manuscriptFileContent,
-      promptData.manuscriptFileName,
-      docData.visualElements,
-      apiKey
-    );
-
-    const manuscriptFile = uploadedFiles.find(uf => uf.kind === 'MANUSCRIPT');
-    if (manuscriptFile) {
-      userParts.push({
-        text: isJa
-          ? `[添付原稿・既存レビュー一覧ファイル (${manuscriptFile.title})]`
-          : `[Attached Manuscript & Existing Reviews File (${manuscriptFile.title})]`
-      });
-      userParts.push({
-        fileData: {
-          mimeType: manuscriptFile.mimeType,
-          fileUri: manuscriptFile.fileUri
-        }
-      });
-    } else if (promptData.manuscriptFileContent) {
-      userParts.push({ text: promptData.manuscriptFileContent });
-    }
-
-    uploadedFiles
-      .filter(uf => uf.kind === 'VISUAL')
-      .forEach(uf => {
-        userParts.push({ text: `\n[Attached Image File for ${uf.targetId} (${uf.type}: "${uf.title}")] ` });
-        userParts.push({
-          fileData: {
-            mimeType: uf.mimeType,
-            fileUri: uf.fileUri
-          }
-        });
-      });
-
-    userParts.push({ text: '\n' + promptData.userMessage });
-
-    const payload = {
-      systemInstruction: { parts: [{ text: promptData.systemPrompt }] },
-      contents: [{ role: 'user', parts: userParts }],
-      generationConfig: {
-        temperature: 0.3,
-        responseMimeType: 'application/json',
-        responseSchema: promptData.responseSchema
-      }
-    };
-
-    const rawJsonText = callGeminiApiRaw_(model, apiKey, payload);
-    try {
-      parsedResult = JSON.parse(rawJsonText);
-    } catch (e) {
-      throw new Error('Failed to parse JSON response from Gemini: ' + rawJsonText);
-    }
-  } finally {
-    if (uploadedFiles.length > 0) {
-      deleteGeminiFiles_(uploadedFiles, apiKey);
-    }
-  }
+  const parsedResult = executeMultimodalJsonGeneration_(
+    model,
+    apiKey,
+    promptData,
+    docData.visualElements,
+    isJa ? '添付原稿・既存レビュー履歴一覧ファイル' : 'Attached Manuscript & Review History File'
+  );
 
   return {
     sourceMode: 'existing',
     modelUsed: model,
     analyzedSuggestionsCount: existingSuggestions.length,
     analyzedCommentsCount: existingComments.length,
+    analyzedResolvedCount: resolvedReviews.length,
     overallFeedback: parsedResult.overallFeedback || '',
     learningSummary: parsedResult.learningSummary || {
       revisionsDigest: '',
@@ -1717,18 +1833,43 @@ function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelN
 }
 
 /**
+ * Formats a resolved review thread (accepted/rejected suggestion or resolved comment)
+ * into a single human-readable line for Markdown context files.
+ *
+ * @param {Object} r Resolved review thread object.
+ * @param {number} idx Zero-based index.
+ * @return {string} Formatted Markdown line.
+ */
+function formatResolvedReviewLine_(r, idx) {
+  const statusTag = r.resolutionState || 'RESOLVED';
+  const typeTag = r.threadType === 'SUGGESTION' ? 'Suggestion' : 'Comment';
+  const authorPrefix = r.author ? `Author="${r.author}", ` : '';
+  const quotePrefix = r.quotedText ? `Target/Quoted="${r.quotedText.replace(/\n+/g, ' ')}", ` : '';
+  const summaryPrefix = (r.summaryText && r.summaryText !== r.quotedText)
+    ? `Summary="${r.summaryText.replace(/\n+/g, ' ')}", `
+    : '';
+  const headStr = r.content ? `Content="${r.content.replace(/\n+/g, ' ')}"` : '';
+  const repliesStr = (r.replies && r.replies.length > 0)
+    ? ` | Replies: [${r.replies.map(rep => `${rep.author ? rep.author + ': ' : ''}${rep.content.replace(/\n+/g, ' ')}`).join(' / ')}]`
+    : '';
+  return `${idx + 1}. [Resolved ${typeTag} (${statusTag}) | ${authorPrefix}${quotePrefix}${summaryPrefix}${headStr}]${repliesStr}`;
+}
+
+/**
  * Builds the system instruction, manuscript Markdown file content, compact user message,
  * and structured JSON schema for generating a "Writing Coach & Learning Summary" from
- * existing suggestions and comments in the Google Document.
+ * existing active suggestions, active comments, and resolved review history in the Google Document.
  *
  * @param {Object} docData Parsed document structure from Step 1.
  * @param {string} customPrompt Optional user instruction.
  * @param {boolean} isJa True if Japanese UI mode.
+ * @param {boolean=} includeResolved Whether to include resolved review history.
  * @return {Object} { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
  */
-function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa) {
+function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa, includeResolved) {
   const existingSuggestions = Array.isArray(docData.existingSuggestions) ? docData.existingSuggestions : [];
   const existingComments = Array.isArray(docData.existingComments) ? docData.existingComments : [];
+  const resolvedReviews = includeResolved && Array.isArray(docData.resolvedReviews) ? docData.resolvedReviews : [];
   const hasTables = docData.tables && docData.tables.length > 0;
   const hasVisuals = docData.visualElements && docData.visualElements.length > 0;
   const isSelectionOnly = Boolean(docData.selectionOnly);
@@ -1772,6 +1913,10 @@ function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJ
     ? existingComments.map(formatCommentLine).join('\n')
     : (isJa ? 'なし' : 'None');
 
+  const resolvedContext = resolvedReviews.length > 0
+    ? resolvedReviews.map(formatResolvedReviewLine_).join('\n')
+    : (isJa ? 'なし' : 'None');
+
   const tablesContext = hasTables
     ? docData.tables.map(t => `${t.targetId} (${t.rowsCount}x${t.colsCount}):\n${t.markdown}`).join('\n\n')
     : (isJa ? 'なし' : 'None');
@@ -1782,17 +1927,17 @@ function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJ
 
   if (isJa) {
     let systemPrompt = `あなたはプロの文章校正者・データビジュアライゼーションの専門家・ライティングコーチです。
-添付された原稿Markdownファイル（および添付された図表画像ファイル）に記載されている「既存の提案（サジェスト：他のユーザー・査読者・共同編集者またはAIによる削除・挿入の修正案）」および「コメント・返信スレッド」を原稿文脈（本文・表・図）と照らし合わせて深く分析し、原稿を書いた執筆者がこれらの指摘・提案から効果的に自己学習できるための「🎓 執筆者への学習アドバイスまとめ（Writing Coach & Learning Summary）」を生成してください。
+添付された原稿Markdownファイル（および添付された図表画像ファイル）に記載されている「未解決の提案（サジェスト）」「未解決のコメント・返信スレッド」、および「解決済みのレビュー履歴（すでに承認・却下された提案や解決済みコメント・ヒントコメント）」を原稿文脈（本文・表・図）と照らし合わせて深く分析し、原稿を書いた執筆者がこれらの指摘・提案・履歴から効果的に自己学習できるための「🎓 執筆者への学習アドバイスまとめ（Writing Coach & Learning Summary）」を生成してください。
 【言語ルール】出力するすべての項目は**すべて日本語のみ**で記述してください。
 
 【分析とコーチングの重点指針】
-1. 添付ファイル内に存在する他のユーザー（同僚・上司・編集者・レビュアー）やAIからのインライン修正提案（削除➔挿入）およびコメントの意図・背景理由を正確に読み取ってください。
-2. なぜそれらの箇所が修正提案されたのか、またコメントで何が指摘されているのかを体系的に整理し、執筆者が今後のライティングで同じミスや弱点を繰り返さないための具体的・実践的な学びへと昇華させてください。
+1. 添付ファイル内に存在する他のユーザー（同僚・上司・編集者・レビュアー）やAIからのインライン修正提案、コメント、および解決済みレビュー履歴（承認・却下・解決済みのスレッド）の意図・背景理由を正確に読み取ってください。
+2. なぜそれらの箇所が修正提案・コメント指摘されたのか（また解決済みの項目でどのように改善されたか）を体系的に整理し、執筆者が今後のライティングで同じミスや弱点を繰り返さないための具体的・実践的な学びへと昇華させてください。
 3. 以下の3点を learningSummary として分かりやすくまとめてください：
-   - revisionsDigest（どのような修正・指摘が行われているか）: 既存の提案やコメントで行われている主な修正・指摘内容の要点まとめ
-   - weakPointsAndHabits（苦手なところ・修正すべき傾向）: 既存の提案やコメントから浮き彫りになった執筆者の文章・構成・図表連携上のクセや弱点
+   - revisionsDigest（どのような修正・指摘が行われているか）: 未解決および解決済みの提案・コメントで行われている主な修正・指摘内容の要点まとめ
+   - weakPointsAndHabits（苦手なところ・修正すべき傾向）: 提案やコメント履歴から浮き彫りになった執筆者の文章・構成・図表連携上のクセや弱点
    - actionableTips（今後の執筆に向けた学習アドバイス）: 指摘事項を踏まえ、次回からの執筆で意識すべき実践的な改善アクション
-4. さらに、サイドバーのダッシュボード上で個別の提案・コメントの学びを確認できるよう、主要な提案・コメントの解説リスト（analyzedItems）も出力してください。`;
+4. さらに、サイドバーのダッシュボード上で個別の提案・コメント（解決済み履歴を含む）の学びを確認できるよう、主要な項目の解説リスト（analyzedItems）も出力してください。`;
 
     if (customPrompt && customPrompt.trim()) {
       systemPrompt += `\n\n【ユーザーからの追加指示（カスタムプロンプト）】
@@ -1803,11 +1948,14 @@ function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJ
     const manuscriptFileContent = `# 対象原稿コンテキスト（インライン提案マーカー・表・図注釈付き）
 ${docData.annotatedText}
 
-# ドキュメント内に存在するインライン修正提案一覧（計 ${existingSuggestions.length} 件）
+# 未解決（アクティブ）のインライン修正提案一覧（計 ${existingSuggestions.length} 件）
 ${suggestionsContext}
 
-# ドキュメント内に存在するコメント＆返信スレッド一覧（計 ${existingComments.length} 件）
+# 未解決（アクティブ）のコメント＆返信スレッド一覧（計 ${existingComments.length} 件）
 ${commentsContext}
+
+# 解決済みの提案・コメント履歴一覧（承認・却下済み提案＆解決済みコメント：計 ${resolvedReviews.length} 件）
+${resolvedContext}
 
 # 対象の表一覧
 ${tablesContext}
@@ -1815,47 +1963,47 @@ ${tablesContext}
 # 対象の図・チャート一覧
 ${visualsContext}`;
 
-    const userMessage = `添付された原稿・既存レビュー一覧ファイル（${manuscriptFileName}）および添付画像（存在する場合）を詳細に分析し、指定されたJSONスキーマに従って「執筆者への学習アドバイスまとめ（learningSummary）」および個別解説リスト（analyzedItems）を出力してください。`;
+    const userMessage = `添付された原稿・レビュー履歴一覧ファイル（${manuscriptFileName}）および添付画像（存在する場合）を詳細に分析し、指定されたJSONスキーマに従って「執筆者への学習アドバイスまとめ（learningSummary）」および個別解説リスト（analyzedItems）を出力してください。`;
 
     const responseSchema = {
       type: 'OBJECT',
       properties: {
         overallFeedback: {
           type: 'STRING',
-          description: '原稿全体および既存の提案・コメント全体に対する総合評価と要約（日本語）'
+          description: '原稿全体および未解決・解決済みの提案・コメント履歴全体に対する総合評価と要約（日本語）'
         },
         learningSummary: {
           type: 'OBJECT',
-          description: '既存の提案・コメント（他ユーザーの指摘やAI提案）から抽出した執筆者向けの学習アドバイスまとめ（すべて日本語）',
+          description: '提案・コメント（未解決および解決済み履歴）から抽出した執筆者向けの学習アドバイスまとめ（すべて日本語）',
           properties: {
             revisionsDigest: {
               type: 'STRING',
-              description: '既存の提案やコメントでどのような修正・指摘が行われているかのシンプルなまとめ（日本語）'
+              description: '提案やコメント（解決済み履歴を含む）でどのような修正・指摘が行われたかのシンプルなまとめ（日本語）'
             },
             weakPointsAndHabits: {
               type: 'STRING',
-              description: '既存の提案やコメントから見受けられる執筆者の苦手なところや修正すべき傾向・クセ（日本語）'
+              description: '提案やコメント履歴から見受けられる執筆者の苦手なところや修正すべき傾向・クセ（日本語）'
             },
             actionableTips: {
               type: 'STRING',
-              description: 'これらの提案・コメントを糧にして今後の執筆で意識すべき具体的な学習アドバイス（日本語）'
+              description: 'これらの提案・コメント履歴を糧にして今後の執筆で意識すべき具体的な学習アドバイス（日本語）'
             }
           },
           required: ['revisionsDigest', 'weakPointsAndHabits', 'actionableTips']
         },
         analyzedItems: {
           type: 'ARRAY',
-          description: '既存の主要な提案やコメントごとの意図・理由・学習ポイントの解説リスト（日本語）',
+          description: '主要な提案やコメント（解決済み履歴を含む）ごとの意図・理由・学習ポイントの解説リスト（日本語）',
           items: {
             type: 'OBJECT',
             properties: {
               category: {
                 type: 'STRING',
-                description: '指摘・提案のカテゴリ（日本語。例: レビュアーコメント, 論理・明確化, 語彙・表現, 表・図の整合性, 文法）'
+                description: '指摘・提案のカテゴリ（日本語。例: 解決済みレビュー, レビュアーコメント, 論理・明確化, 語彙・表現, 表・図の整合性, 文法）'
               },
               targetSummary: {
                 type: 'STRING',
-                description: '対象の修正提案（変更前➔変更後）またはコメント指摘内容の簡潔な要約'
+                description: '対象の修正提案（変更前➔変更後）またはコメント・解決済み指摘内容の簡潔な要約'
               },
               reason: {
                 type: 'STRING',
@@ -1878,17 +2026,17 @@ ${visualsContext}`;
 
   // English UI Mode ('en')
   let systemPrompt = `You are a professional editor, data visualization specialist, and pedagogical writing coach.
-Your task is to deeply analyze the existing inline suggestions (deletions and insertions proposed by other human users/reviewers, collaborators, or AI) and the existing comment threads contained in the attached manuscript Markdown file (alongside any attached figure images), and generate a structured "🎓 Writing Coach & Learning Summary" so the author can effectively learn from these reviews and suggestions.
+Your task is to deeply analyze the active inline suggestions, active comment threads, and resolved review history (accepted/rejected suggestions and resolved comments/hints) contained in the attached manuscript Markdown file (alongside any attached figure images), and generate a structured "🎓 Writing Coach & Learning Summary" so the author can effectively learn from both active and resolved reviews.
 [LANGUAGE RULE] All output fields MUST be written **100% in English**.
 
 [COACHING & ANALYSIS GUIDELINES]
-1. Accurately interpret the intent and editorial rationale behind the existing inline suggestions (Deleted ➔ Inserted) and reviewer comments/replies present in the attached file.
+1. Accurately interpret the intent and editorial rationale behind the active inline suggestions (Deleted ➔ Inserted), active reviewer comments/replies, and resolved review history threads (accepted/rejected edits and resolved comments) present in the attached file.
 2. Synthesize why those edits and comments were made so the author can understand their own recurring writing habits and avoid repeating the same weaknesses in future drafts.
 3. Provide a clear, high-impact "learningSummary" covering:
-   - revisionsDigest (What Was Revised / Pointed Out): A concise summary of the key revisions, corrections, and reviewer comments present in the document.
+   - revisionsDigest (What Was Revised / Pointed Out): A concise summary of the key revisions, corrections, and reviewer/coaching comments (both active and resolved) in the document.
    - weakPointsAndHabits (Areas for Improvement & Writing Habits): Recurring tendencies, grammatical/stylistic habits, logical gaps, or text-table-figure alignment issues revealed by those suggestions and comments.
    - actionableTips (Actionable Advice for Future Writing): Practical, concrete takeaways the author can apply in future writing based on this feedback.
-4. Also provide "analyzedItems" summarizing the key individual suggestions and comments with their rationale and learning points for the sidebar dashboard.`;
+4. Also provide "analyzedItems" summarizing the key individual suggestions and comments (including resolved history items) with their rationale and learning points for the sidebar dashboard.`;
 
   if (customPrompt && customPrompt.trim()) {
     systemPrompt += `\n\n[Additional Instructions from User (Custom Prompt)]
@@ -1899,11 +2047,14 @@ Incorporate the following instructions as high-priority criteria when analyzing 
   const manuscriptFileContent = `# Target Manuscript Context (with inline suggestion markers, table markdown, and visual markers)
 ${docData.annotatedText}
 
-# Existing Inline Suggestions in Scope (Total: ${existingSuggestions.length})
+# Active (Unresolved) Inline Suggestions in Scope (Total: ${existingSuggestions.length})
 ${suggestionsContext}
 
-# Existing Comment Threads & Replies in Scope (Total: ${existingComments.length})
+# Active (Unresolved) Comment Threads & Replies in Scope (Total: ${existingComments.length})
 ${commentsContext}
+
+# Resolved Review History — Accepted/Rejected Suggestions & Resolved Comments (Total: ${resolvedReviews.length})
+${resolvedContext}
 
 # Tables in Scope
 ${tablesContext}
@@ -1911,26 +2062,26 @@ ${tablesContext}
 # Figures & Charts in Scope
 ${visualsContext}`;
 
-  const userMessage = `Please analyze the attached manuscript and existing reviews Markdown file (${manuscriptFileName}) along with any attached figure images, and generate the "Writing Coach & Learning Summary" and "analyzedItems" adhering strictly to the response JSON schema.`;
+  const userMessage = `Please analyze the attached manuscript and review history Markdown file (${manuscriptFileName}) along with any attached figure images, and generate the "Writing Coach & Learning Summary" and "analyzedItems" adhering strictly to the response JSON schema.`;
 
   const responseSchema = {
     type: 'OBJECT',
     properties: {
       overallFeedback: {
         type: 'STRING',
-        description: 'Comprehensive evaluation of the manuscript and synthesis of the existing suggestions and comments (in English).'
+        description: 'Comprehensive evaluation of the manuscript and synthesis of the active and resolved suggestions and comments (in English).'
       },
       learningSummary: {
         type: 'OBJECT',
-        description: 'Structured learning advice for the author synthesized from the existing suggestions and comments in the document (100% in English).',
+        description: 'Structured learning advice for the author synthesized from the active and resolved suggestions and comments in the document (100% in English).',
         properties: {
           revisionsDigest: {
             type: 'STRING',
-            description: 'Clear summary of what kinds of revisions and reviewer comments were made in the document (in English).'
+            description: 'Clear summary of what kinds of revisions and reviewer/coaching comments were made in the document (in English).'
           },
           weakPointsAndHabits: {
             type: 'STRING',
-            description: 'Summary of weak areas, recurring writing habits, or blind spots revealed by the existing suggestions and comments (in English).'
+            description: 'Summary of weak areas, recurring writing habits, or blind spots revealed by the suggestions and comments (in English).'
           },
           actionableTips: {
             type: 'STRING',
@@ -1941,21 +2092,21 @@ ${visualsContext}`;
       },
       analyzedItems: {
         type: 'ARRAY',
-        description: 'Digest of key lessons extracted from individual existing suggestions and comments (in English).',
+        description: 'Digest of key lessons extracted from individual active and resolved suggestions and comments (in English).',
         items: {
           type: 'OBJECT',
           properties: {
             category: {
               type: 'STRING',
-              description: 'Category in English (e.g., Reviewer Comment, Clarity & Logic, Word Choice, Table/Figure Alignment, Grammar).'
+              description: 'Category in English (e.g., Resolved Review, Reviewer Comment, Clarity & Logic, Word Choice, Table/Figure Alignment, Grammar).'
             },
             targetSummary: {
               type: 'STRING',
-              description: 'Concise summary of the suggested edit (Original ➔ Suggested) or reviewer comment.'
+              description: 'Concise summary of the suggested edit (Original ➔ Suggested) or active/resolved comment.'
             },
             reason: {
               type: 'STRING',
-              description: 'Why this suggested change or reviewer comment is important (in English).'
+              description: 'Why this suggested change or comment is important (in English).'
             },
             learningPoint: {
               type: 'STRING',
@@ -1976,34 +2127,48 @@ ${visualsContext}`;
  * Builds the localized system instruction, manuscript Markdown file content, compact user message,
  * and structured JSON schema for Step 2, enforcing strict 100% single-language output ('ja' or 'en')
  * and generating the comprehensive author learning summary.
- *When `docData.selectionOnly` is true, only the selected portion (selected blocks, selected tables,
- * and selected figures) is packaged into the uploaded Markdown file.
+ * Supports both Standard Suggestion Mode (`WriteMode.SUGGEST`) and Hint-Only Mode (`insertComment`),
+ * as well as optional inclusion of resolved review history for continuity across iterative drafts.
  *
  * @param {Object} docData Parsed document structure from Step 1.
  * @param {string} customPrompt Optional user instruction.
  * @param {boolean} isJa True if Japanese UI mode, false if English UI mode.
+ * @param {boolean=} hintOnly Whether Hint-Only Mode is enabled.
+ * @param {boolean=} includeResolved Whether to include resolved review history in context.
  * @return {Object} { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
  */
-function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa) {
+function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa, hintOnly, includeResolved) {
   const hasExisting = docData.existingSuggestions && docData.existingSuggestions.length > 0;
+  const resolvedList = includeResolved && Array.isArray(docData.resolvedReviews) ? docData.resolvedReviews : [];
+  const hasResolved = resolvedList.length > 0;
   const hasTables = docData.tables && docData.tables.length > 0;
   const hasVisuals = docData.visualElements && docData.visualElements.length > 0;
   const isSelectionOnly = Boolean(docData.selectionOnly);
+  const isHintOnly = Boolean(hintOnly);
   const manuscriptFileName = isSelectionOnly ? 'selected_excerpt.md' : 'manuscript_context.md';
 
   if (isJa) {
     let systemPrompt = `あなたはプロの文章校正者・データビジュアライゼーションの専門家・ライティングコーチです。
-添付された原稿Markdownファイル（${manuscriptFileName}）および図表画像ファイルの内容を理解し、推敲後の改善内容も踏まえた上で、具体的な修正提案と、原稿を書いたユーザーの今後の学習のためのシンプルなアドバイスまとめを出力してください。
+添付された原稿Markdownファイル（${manuscriptFileName}）および図表画像ファイルの内容を理解し、推敲後の改善内容も踏まえた上で、具体的な修正提案（または自力推敲用ヒント）と、原稿を書いたユーザーの今後の学習のためのシンプルなアドバイスまとめを出力してください。
 【言語ルール】出力するすべての項目（カテゴリ名、理由、講評、学習アドバイス等）は**すべて日本語のみ**で記述してください。
 
 【厳守ルール】
 1. テキストの推敲提案（suggestions）における元のフレーズ（originalText）は、添付された原稿Markdownファイル内の「推敲対象の確定済みテキストブロック一覧」の中に**一字一句完全に一致して存在する部分文字列**（改行を含まない）を指定してください。
-2. 推敲対象の表（TABLE_1 等）が含まれる場合、表のセル内の文言修正は「suggestions」に含め、表全体の構成・項目設計・データ表現に関するコメントがある場合は「elementSuggestions」に targetId（例: "TABLE_1"）を指定して出力してください。
+2. 推敲対象の表（TABLE_1 等）が含まれる場合、表のセル内の文言に関する指摘は「suggestions」に含め、表全体の構成・項目設計・データ表現に関するコメントがある場合は「elementSuggestions」に targetId（例: "TABLE_1"）を指定して出力してください。
 3. 【重要：図・チャートへの推敲コメント作成（必須）】Google Docsでは図やチャート（VISUAL_1 等）自体に対して直接インラインの置換提案（WriteMode.SUGGEST）を行うことができないため、図に対する推敲フィードバックは**Google Docsのコメント（insertComment）として図に付与**されます。推敲対象の図やチャート（VISUAL_1 等）が1つ以上含まれる場合は、添付された画像データを視覚的に解析し、**すべての対象図（VISUAL_1 等）それぞれについて最低1件以上**、図自体の視認性・ラベル・データ表現・または本文との整合性に関する推敲コメントを「elementSuggestions」に targetId（例: "VISUAL_1"）を指定して**必ず出力**してください（空配列にしないでください）。
-4. 原稿の内容と今回の推敲後の内容を深く比較・理解した上で、執筆したユーザーの今後の学習用アドバイス（learningSummary）として以下の3点をシンプルかつ具体的にまとめてください：
-   - revisionsDigest（どのような修正を行ったか）: 今回の推敲でどのような種類の修正・改善および図表コメントを行ったかの要点まとめ
+4. 原稿の内容と今回の推敲内容を深く比較・理解した上で、執筆したユーザーの今後の学習用アドバイス（learningSummary）として以下の3点をシンプルかつ具体的にまとめてください：
+   - revisionsDigest（どのような修正・指摘を行ったか）: 今回の推敲でどのような種類の修正・ヒント提示および図表コメントを行ったかの要点まとめ
    - weakPointsAndHabits（苦手なところ・修正すべき傾向）: 原稿から見受けられるユーザーの文章・構成・図表表現上のクセや弱点、注意すべきポイント
    - actionableTips（今後の執筆に向けた学習アドバイス）: 次回からの執筆で意識すべき実践的でシンプルな改善アクション`;
+
+    if (isHintOnly) {
+      systemPrompt += `\n\n【重要：💡 ヒントのみ表示モード（Hint-Only Mode / 自力推敲コーチング）】
+現在「ヒントのみ表示モード」が有効です。ドキュメント上には直接の書き換え提案（WriteMode.SUGGEST）を行わず、該当フレーズ（originalText）に対して**理由（reason）と自力修正のヒント（learningPoint）のみをコメント（insertComment）として付与**し、執筆者自身が自分の頭で考えて文章を書き直す学習体験を提供します。
+そのため、各 suggestions 項目では以下を徹底してください：
+- reason: そのフレーズ（originalText）のどこにどのような問題・違和感・論理の飛躍・文法ミスがあるのかを明確に指摘してください（ここに完成した書き換え文そのものを書かないでください）。
+- learningPoint: 執筆者が**自分の力で書き直すための具体的な着眼点・思考のヒント・改善の方向性**を提示してください（答えの文を丸写しさせるのではなく、「どの語を削るべきか」「主語と述語をどう対応させるか」といった自力推敲のヒントにしてください）。
+- suggestedText: サイドバーの「参考解答を見る」折りたたみ表示用に、模範となる修正後のテキストを設定してください。`;
+    }
 
     if (isSelectionOnly) {
       systemPrompt += `\n\n【重要：選択範囲のみの推敲モード】
@@ -2011,10 +2176,15 @@ function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa) {
     }
 
     if (hasExisting) {
-      systemPrompt += `\n\n【重要：既存の修正提案への配慮】
+      systemPrompt += `\n\n【重要：既存の未解決提案への配慮】
 対象範囲には既に以下の修正案が提案されています：
 ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}): 削除="${s.deletedText.replace(/\n/g, '')}" ➔ 挿入="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
 これらの提案済みの修正案を考慮したうえで、まだ提案が掛かっていない確定済みテキストや表・図・チャートに対して追加の提案を行ってください。`;
+    }
+
+    if (hasResolved) {
+      systemPrompt += `\n\n【参考：ドキュメント内の解決済みレビュー履歴】
+添付ファイルには、過去に承認・却下または解決されたレビュー履歴（計 ${resolvedList.length} 件）も記載されています。既に解決された箇所を元の誤った表現に戻すような矛盾した提案は避け、執筆者のこれまでの改善履歴も踏まえてコーチングを行ってください。`;
     }
 
     if (customPrompt && customPrompt.trim()) {
@@ -2046,6 +2216,9 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
     if (hasVisuals) {
       manuscriptSections.push(`# 推敲対象の図・チャート一覧\n${visualsContext}`);
     }
+    if (hasResolved) {
+      manuscriptSections.push(`# 解決済みの提案・コメント履歴（参考コンテキスト）\n${resolvedList.map(formatResolvedReviewLine_).join('\n')}`);
+    }
 
     const manuscriptFileContent = manuscriptSections.join('\n\n');
     const userMessage = `添付された原稿Markdownファイル（${manuscriptFileName}）および添付された図表画像ファイル（存在する場合）を読み取り、推敲提案（suggestions）、図表への推敲コメント（elementSuggestions）、および執筆者への学習アドバイスまとめ（learningSummary）を指定されたJSONスキーマに従って出力してください。`;
@@ -2063,7 +2236,7 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
           properties: {
             revisionsDigest: {
               type: 'STRING',
-              description: 'どのような修正を行ったか（今回の推敲で行った主な修正内容のシンプルなまとめ・日本語）'
+              description: 'どのような修正・指摘を行ったか（今回の推敲で行った主な修正・ヒント内容のシンプルなまとめ・日本語）'
             },
             weakPointsAndHabits: {
               type: 'STRING',
@@ -2078,11 +2251,11 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
         },
         existingSuggestionsNote: {
           type: 'STRING',
-          description: '既存の提案がある場合、それをどう考慮して追加の提案を行ったかの説明（無い場合は空文字列・日本語）'
+          description: '既存の提案や解決済み履歴がある場合、それをどう考慮したかの説明（無い場合は空文字列・日本語）'
         },
         suggestions: {
           type: 'ARRAY',
-          description: '推敲対象の本文および表セル内のテキストに対するインライン推敲提案リスト',
+          description: '推敲対象の本文および表セル内のテキストに対する推敲提案（またはヒント指摘）リスト',
           items: {
             type: 'OBJECT',
             properties: {
@@ -2092,7 +2265,7 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
               },
               suggestedText: {
                 type: 'STRING',
-                description: '推敲・修正後の新しいテキスト'
+                description: '推敲・修正後の模範テキスト'
               },
               category: {
                 type: 'STRING',
@@ -2100,11 +2273,15 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
               },
               reason: {
                 type: 'STRING',
-                description: 'なぜこのように修正したのかの具体的な理由（日本語）'
+                description: isHintOnly
+                  ? 'この箇所にどのような問題・改善点があるのかの理由（直接の書き換え文は含めず問題点を説明・日本語）'
+                  : 'なぜこのように修正したのかの具体的な理由（日本語）'
               },
               learningPoint: {
                 type: 'STRING',
-                description: 'ユーザーが今後の執筆で活かせる学習ワンポイント解説（日本語）'
+                description: isHintOnly
+                  ? '執筆者が自分で考えて書き直すための具体的な推敲ヒント・着眼点（日本語）'
+                  : 'ユーザーが今後の執筆で活かせる学習ワンポイント解説（日本語）'
               }
             },
             required: ['originalText', 'suggestedText', 'category', 'reason', 'learningPoint']
@@ -2149,7 +2326,7 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
 
   // English UI Mode ('en')
   let systemPrompt = `You are a professional editor, data visualization specialist, and writing coach.
-Your task is to comprehensively understand the manuscript content in the attached Markdown file (${manuscriptFileName}) along with any attached figure images, propose specific improvements, and provide a concise, structured learning advice summary for the author.
+Your task is to comprehensively understand the manuscript content in the attached Markdown file (${manuscriptFileName}) along with any attached figure images, propose specific improvements (or self-revision coaching hints), and provide a concise, structured learning advice summary for the author.
 [LANGUAGE RULE] All output fields (categories, reasons, feedback, and learning advice—excluding quoted source text from the document if the document itself is in another language) MUST be written **100% in English**.
 
 [STRICT RULES]
@@ -2157,13 +2334,22 @@ Your task is to comprehensively understand the manuscript content in the attache
 2. When target tables (e.g., TABLE_1) are present, propose cell text edits in "suggestions", and provide structural or data-presentation review comments for the table as a whole in "elementSuggestions" using its targetId (e.g., "TABLE_1").
 3. [MANDATORY: Figure & Chart Review Comments] Because inline edit suggestions (WriteMode.SUGGEST) cannot be applied directly to figures or charts in Google Docs, figure proofreading feedback is created as a **Google Docs Comment (insertComment)** anchored to the figure. Whenever one or more target figures or charts (e.g., VISUAL_1) are present, you MUST visually analyze the attached image data and output **at least one figure review comment in "elementSuggestions" for EVERY target figure (e.g., targetId: "VISUAL_1")** covering visual clarity, labels, data presentation, or alignment with the body text (do not leave elementSuggestions empty when figures exist).
 4. Based on a deep understanding of the attached manuscript and your proofread revisions, synthesize a simple, high-impact "learningSummary" for the author covering:
-   - revisionsDigest (What Was Revised): A clear summary of the key types of edits, improvements, and figure/table review comments made during this proofreading session.
+   - revisionsDigest (What Was Revised / Flagged): A clear summary of the key types of edits, hints, and figure/table review comments made during this proofreading session.
    - weakPointsAndHabits (Areas for Improvement & Writing Habits): Patterns, recurring weaknesses, or tendencies observed in the author's draft and visual presentation that needed revision.
    - actionableTips (Future Learning Advice): Simple, practical takeaways the author can apply to improve their future writing.`;
 
+  if (isHintOnly) {
+    systemPrompt += `\n\n[IMPORTANT: 💡 Hint-Only Mode (Self-Revision Coaching Without Spoiling the Rewrite)]
+"Hint-Only Mode" is currently enabled. In the Google Document, instead of applying inline text replacements (WriteMode.SUGGEST), your feedback on each flagged phrase ("originalText") will be anchored as a **Google Docs Comment (insertComment) showing ONLY the issue ("reason") and a coaching hint ("learningPoint")** so the author can practice revising the sentence themselves first.
+Therefore, for every item in "suggestions":
+- "reason": Clearly explain what the issue is in "originalText" (e.g., double superlative, uncountable noun error, redundant modifier, or unclear logic) WITHOUT giving away the exact rewritten sentence.
+- "learningPoint": Provide a constructive coaching hint or guiding tip that helps the author figure out how to fix the phrase on their own (do NOT paste the full rewritten sentence inside "reason" or "learningPoint").
+- "suggestedText": Still provide the ideal revised phrase here so the author can optionally check the reference rewrite in the sidebar after attempting their own revision.`;
+  }
+
   if (isSelectionOnly) {
     systemPrompt += `\n\n[IMPORTANT: Proofread Selection Only Mode]
-"Proofread Selection Only" mode is currently enabled, and the attached Markdown file (${manuscriptFileName}) contains ** strictly the user's selected portion**. You MUST restrict your "suggestions" and "elementSuggestions" strictly to the selected items listed in "Target Editable Settled Text Blocks", "Target Tables", and "Target Figures & Charts" (do not critique the absence of unselected paragraphs, tables, or figures outside this excerpt).`;
+"Proofread Selection Only" mode is currently enabled, and the attached Markdown file (${manuscriptFileName}) contains **strictly the user's selected portion**. You MUST restrict your "suggestions" and "elementSuggestions" strictly to the selected items listed in "Target Editable Settled Text Blocks", "Target Tables", and "Target Figures & Charts" (do not critique the absence of unselected paragraphs, tables, or figures outside this excerpt).`;
   }
 
   if (hasExisting) {
@@ -2171,6 +2357,11 @@ Your task is to comprehensively understand the manuscript content in the attache
 The target scope already contains the following pending suggestions:
 ${docData.existingSuggestions.map((s, idx) => `- Suggestion ${idx + 1} (ID: ${s.id}): Delete="${s.deletedText.replace(/\n/g, '')}" -> Insert="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
 Please take these existing suggestions into account and propose additional improvements on the remaining settled text blocks, tables, and figures/charts.`;
+  }
+
+  if (hasResolved) {
+    systemPrompt += `\n\n[Reference: Resolved Review History in Document]
+The attached file also includes ${resolvedList.length} previously resolved review thread(s) (accepted/rejected suggestions or resolved comments). Avoid proposing edits that contradict or revert improvements the author has already accepted or resolved, and incorporate continuity into your coaching.`;
   }
 
   if (customPrompt && customPrompt.trim()) {
@@ -2202,6 +2393,9 @@ Incorporate the following instructions as high-priority criteria in addition to 
   if (hasVisuals) {
     manuscriptSections.push(`# Target Figures & Charts\n${visualsContext}`);
   }
+  if (hasResolved) {
+    manuscriptSections.push(`# Resolved Review History (Reference Context)\n${resolvedList.map(formatResolvedReviewLine_).join('\n')}`);
+  }
 
   const manuscriptFileContent = manuscriptSections.join('\n\n');
   const userMessage = `Please read the attached manuscript Markdown file (${manuscriptFileName}) along with any attached figure image files, and generate the proofreading suggestions, element review comments, and Writing Coach & Learning Summary adhering strictly to the JSON response schema.`;
@@ -2219,7 +2413,7 @@ Incorporate the following instructions as high-priority criteria in addition to 
         properties: {
           revisionsDigest: {
             type: 'STRING',
-            description: 'Simple summary of what kinds of revisions and improvements were made (in English).'
+            description: 'Simple summary of what kinds of revisions, hints, and improvements were made (in English).'
           },
           weakPointsAndHabits: {
             type: 'STRING',
@@ -2234,21 +2428,21 @@ Incorporate the following instructions as high-priority criteria in addition to 
       },
       existingSuggestionsNote: {
         type: 'STRING',
-        description: 'Explanation of how existing suggestions were considered (empty string if none, in English).'
+        description: 'Explanation of how existing suggestions or resolved reviews were considered (empty string if none, in English).'
       },
       suggestions: {
         type: 'ARRAY',
-        description: 'Inline text revision suggestions for target body text and table cells.',
+        description: 'Inline text revision suggestions (or flagged phrases for Hint-Only Mode) for target body text and table cells.',
         items: {
           type: 'OBJECT',
           properties: {
             originalText: {
               type: 'STRING',
-              description: 'Exact substring from the Target Editable Settled Text Blocks to be replaced (no newlines).'
+              description: 'Exact substring from the Target Editable Settled Text Blocks to be replaced or flagged (no newlines).'
             },
             suggestedText: {
               type: 'STRING',
-              description: 'The revised text after proofreading.'
+              description: 'The reference revised text after proofreading.'
             },
             category: {
               type: 'STRING',
@@ -2256,11 +2450,15 @@ Incorporate the following instructions as high-priority criteria in addition to 
             },
             reason: {
               type: 'STRING',
-              description: 'Specific reason why this revision improves the text (in English).'
+              description: isHintOnly
+                ? 'Specific explanation of the issue in originalText without spoiling the exact rewrite (in English).'
+                : 'Specific reason why this revision improves the text (in English).'
             },
             learningPoint: {
               type: 'STRING',
-              description: 'Actionable writing takeaway for the user (in English).'
+              description: isHintOnly
+                ? 'Constructive coaching hint guiding the author on how to revise the phrase themselves (in English).'
+                : 'Actionable writing takeaway for the user (in English).'
             }
           },
           required: ['originalText', 'suggestedText', 'category', 'reason', 'learningPoint']
@@ -2486,14 +2684,15 @@ function deleteGeminiFiles_(uploadedFiles, apiKey) {
 
 /**
  * ============================================================================
- * STEP 3: Build Request Body for Inline Suggestions & Visual/Table Comments
+ * STEP 3: Build Request Body for Inline Suggestions / Hint Comments & Visual/Table Comments
  * ============================================================================
  */
-function step3_buildRequestBody(docData, aiResult, lang) {
+function step3_buildRequestBody(docData, aiResult, lang, hintOnly) {
   const activeTabId = (docData && docData.activeTabId) ? docData.activeTabId : '';
   const editableBlocks = (docData && docData.editableBlocks) ? docData.editableBlocks : [];
   const rawSuggestions = (aiResult && aiResult.suggestions) ? aiResult.suggestions : [];
   const rawElementSuggestions = (aiResult && aiResult.elementSuggestions) ? aiResult.elementSuggestions : [];
+  const isHintOnly = Boolean(hintOnly || (aiResult && aiResult.hintOnly));
 
   const matchedItems = [];
   const usedRanges = [];
@@ -2502,7 +2701,7 @@ function step3_buildRequestBody(docData, aiResult, lang) {
     const orig = (sug.originalText || '').trim();
     const repl = (sug.suggestedText !== undefined && sug.suggestedText !== null) ? String(sug.suggestedText) : '';
 
-    if (!orig || orig === repl) return;
+    if (!orig || (!isHintOnly && orig === repl)) return;
 
     let foundRange = null;
 
@@ -2538,43 +2737,66 @@ function step3_buildRequestBody(docData, aiResult, lang) {
         learningPoint: sug.learningPoint || '',
         startIndex: foundRange.startIndex,
         endIndex: foundRange.endIndex,
-        tabId: activeTabId
+        tabId: activeTabId,
+        hintOnly: isHintOnly
       });
     }
   });
 
   matchedItems.sort((a, b) => b.startIndex - a.startIndex);
 
+  const isJa = lang === 'ja';
   const suggestRequests = [];
-  matchedItems.forEach(item => {
-    const deleteRange = {
-      startIndex: item.startIndex,
-      endIndex: item.endIndex
-    };
-    if (activeTabId) {
-      deleteRange.tabId = activeTabId;
-    }
-    suggestRequests.push({
-      deleteContentRange: {
-        range: deleteRange
-      }
-    });
+  const hintCommentRequests = [];
 
-    if (item.suggestedText.length > 0) {
-      const insertLoc = {
-        index: item.startIndex
+  if (isHintOnly) {
+    matchedItems.forEach(item => {
+      const hintCommentText = formatHintComment_(item, isJa);
+      const anchorRange = {
+        startIndex: item.startIndex,
+        endIndex: Math.max(item.startIndex + 1, item.endIndex)
       };
       if (activeTabId) {
-        insertLoc.tabId = activeTabId;
+        anchorRange.tabId = activeTabId;
       }
-      suggestRequests.push({
-        insertText: {
-          location: insertLoc,
-          text: item.suggestedText
+      hintCommentRequests.push({
+        insertComment: {
+          content: hintCommentText,
+          range: anchorRange
         }
       });
-    }
-  });
+    });
+  } else {
+    matchedItems.forEach(item => {
+      const deleteRange = {
+        startIndex: item.startIndex,
+        endIndex: item.endIndex
+      };
+      if (activeTabId) {
+        deleteRange.tabId = activeTabId;
+      }
+      suggestRequests.push({
+        deleteContentRange: {
+          range: deleteRange
+        }
+      });
+
+      if (item.suggestedText.length > 0) {
+        const insertLoc = {
+          index: item.startIndex
+        };
+        if (activeTabId) {
+          insertLoc.tabId = activeTabId;
+        }
+        suggestRequests.push({
+          insertText: {
+            location: insertLoc,
+            text: item.suggestedText
+          }
+        });
+      }
+    });
+  }
 
   const matchedElementItems = [];
   const elementMap = {};
@@ -2590,8 +2812,8 @@ function step3_buildRequestBody(docData, aiResult, lang) {
         targetId: elSug.targetId,
         elementKind: isVisual ? 'VISUAL' : 'TABLE',
         category: elSug.category || (isVisual
-          ? (lang === 'ja' ? '図への推敲コメント' : 'Figure Review Comment')
-          : (lang === 'ja' ? '表への推敲コメント' : 'Table Review Comment')),
+          ? (isJa ? '図への推敲コメント' : 'Figure Review Comment')
+          : (isJa ? '表への推敲コメント' : 'Table Review Comment')),
         suggestion: elSug.suggestion || '',
         reason: elSug.reason || '',
         learningPoint: elSug.learningPoint || '',
@@ -2604,32 +2826,37 @@ function step3_buildRequestBody(docData, aiResult, lang) {
     }
   });
 
-  const suggestBatchUpdateBody = {
-    writeControl: {
-      writeMode: 'SUGGEST'
-    },
-    requests: suggestRequests
-  };
+  const suggestBatchUpdateBody = isHintOnly
+    ? { requests: hintCommentRequests }
+    : {
+        writeControl: {
+          writeMode: 'SUGGEST'
+        },
+        requests: suggestRequests
+      };
 
   return {
     activeTabId: activeTabId,
+    hintOnly: isHintOnly,
     matchedCount: matchedItems.length + matchedElementItems.length,
     matchedTextCount: matchedItems.length,
     matchedElementCount: matchedElementItems.length,
     matchedItems: matchedItems,
     matchedElementItems: matchedElementItems,
+    hintCommentRequests: hintCommentRequests,
     suggestBatchUpdateBody: suggestBatchUpdateBody
   };
 }
 
 /**
  * ============================================================================
- * STEP 4: Apply Suggestions and Learning Comments via documents.batchUpdate
+ * STEP 4: Apply Suggestions / Hint Comments and Element Comments via documents.batchUpdate
  * ============================================================================
  */
 function step4_applySuggestions(builtData, lang) {
   const isJa = lang === 'ja';
   const activeTabId = (builtData && builtData.activeTabId) ? builtData.activeTabId : '';
+  const isHintOnly = Boolean(builtData && builtData.hintOnly);
   const textItems = (builtData && builtData.matchedItems) ? builtData.matchedItems : [];
   const elementItems = (builtData && builtData.matchedElementItems) ? builtData.matchedElementItems : [];
 
@@ -2640,76 +2867,102 @@ function step4_applySuggestions(builtData, lang) {
   const docId = DocumentApp.getActiveDocument().getId();
   const suggestionReplyRequests = [];
 
-  // Phase 1: Apply inline text suggestions (WriteMode.SUGGEST) and attach replies (addCommentReply)
+  // Phase 1: Apply either Hint-Only anchored comments (insertComment) OR inline text suggestions (WriteMode.SUGGEST + addCommentReply)
   if (textItems.length > 0) {
-    const suggestResJson = executeBatchUpdate_(docId, builtData.suggestBatchUpdateBody);
-    const suggestionResponses = suggestResJson.suggestionResponses || [];
-    let reqCursor = 0;
-
-    textItems.forEach(item => {
-      const numReqsForItem = item.suggestedText.length > 0 ? 2 : 1;
-      let foundSuggestionId = null;
-
-      for (let k = 0; k < numReqsForItem; k++) {
-        const sr = suggestionResponses[reqCursor + k];
-        if (sr && sr.createdSuggestionIds && sr.createdSuggestionIds.length > 0) {
-          foundSuggestionId = sr.createdSuggestionIds[0];
-        }
-      }
-      reqCursor += numReqsForItem;
-
-      const commentText = formatLearningComment_(item, isJa);
-
-      if (foundSuggestionId) {
-        suggestionReplyRequests.push({
-          addCommentReply: {
-            suggestionId: foundSuggestionId,
-            post: {
-              content: commentText
+    if (isHintOnly) {
+      const prebuiltHintReqs = Array.isArray(builtData.hintCommentRequests) && builtData.hintCommentRequests.length > 0
+        ? builtData.hintCommentRequests
+        : textItems.map(item => {
+            const anchorRange = {
+              startIndex: item.startIndex,
+              endIndex: Math.max(item.startIndex + 1, item.endIndex)
+            };
+            if (item.tabId || activeTabId) {
+              anchorRange.tabId = item.tabId || activeTabId;
             }
-          }
-        });
-      } else {
-        const anchorRange = {
-          startIndex: item.startIndex,
-          endIndex: item.startIndex + Math.max(1, item.suggestedText.length)
-        };
-        if (item.tabId || activeTabId) {
-          anchorRange.tabId = item.tabId || activeTabId;
-        }
-        suggestionReplyRequests.push({
-          insertComment: {
-            content: commentText,
-            range: anchorRange
-          }
-        });
-      }
-    });
+            return {
+              insertComment: {
+                content: formatHintComment_(item, isJa),
+                range: anchorRange
+              }
+            };
+          });
 
-    if (suggestionReplyRequests.length > 0) {
-      executeSuggestionActionRequestsSafely_(docId, suggestionReplyRequests);
+      if (prebuiltHintReqs.length > 0) {
+        executeSuggestionActionRequestsSafely_(docId, prebuiltHintReqs);
+      }
+    } else {
+      const suggestResJson = executeBatchUpdate_(docId, builtData.suggestBatchUpdateBody);
+      const suggestionResponses = suggestResJson.suggestionResponses || [];
+      let reqCursor = 0;
+
+      textItems.forEach(item => {
+        const numReqsForItem = item.suggestedText.length > 0 ? 2 : 1;
+        let foundSuggestionId = null;
+
+        for (let k = 0; k < numReqsForItem; k++) {
+          const sr = suggestionResponses[reqCursor + k];
+          if (sr && sr.createdSuggestionIds && sr.createdSuggestionIds.length > 0) {
+            foundSuggestionId = sr.createdSuggestionIds[0];
+          }
+        }
+        reqCursor += numReqsForItem;
+
+        const commentText = formatLearningComment_(item, isJa);
+
+        if (foundSuggestionId) {
+          suggestionReplyRequests.push({
+            addCommentReply: {
+              suggestionId: foundSuggestionId,
+              post: {
+                content: commentText
+              }
+            }
+          });
+        } else {
+          const anchorRange = {
+            startIndex: item.startIndex,
+            endIndex: item.startIndex + Math.max(1, item.suggestedText.length)
+          };
+          if (item.tabId || activeTabId) {
+            anchorRange.tabId = item.tabId || activeTabId;
+          }
+          suggestionReplyRequests.push({
+            insertComment: {
+              content: commentText,
+              range: anchorRange
+            }
+          });
+        }
+      });
+
+      if (suggestionReplyRequests.length > 0) {
+        executeSuggestionActionRequestsSafely_(docId, suggestionReplyRequests);
+      }
     }
   }
 
   // Phase 2: Create Google Docs Comments (insertComment) for Figures/Charts (VISUAL_1) and Tables (TABLE_1).
-  // Re-fetch and re-parse the document after Phase 1 so that startIndex/endIndex reflect any
-  // index shifts caused by inline text suggestions.
+  // Re-fetch and re-parse the document after Phase 1 when inline text suggestions were applied
+  // so that startIndex/endIndex reflect any index shifts caused by WriteMode.SUGGEST.
   let appliedElementCommentsCount = 0;
   if (elementItems.length > 0) {
     let freshElementMap = {};
     let freshBlocks = [];
-    try {
-      const freshDocJson = fetchRawDocumentJson_(docId);
-      const freshParsed = parseDocumentStructure_(freshDocJson, {
-        activeTabId: activeTabId,
-        selectionOnly: false,
-        isJa: isJa
-      });
-      (freshParsed.visualElements || []).forEach(v => { freshElementMap[v.targetId] = v; });
-      (freshParsed.tables || []).forEach(t => { freshElementMap[t.targetId] = t; });
-      freshBlocks = freshParsed.editableBlocks || [];
-    } catch (e) {
-      // Fallback to pre-Phase-1 coordinates if re-fetch fails
+    if (!isHintOnly && textItems.length > 0) {
+      try {
+        const freshDocJson = fetchRawDocumentJson_(docId);
+        const freshParsed = parseDocumentStructure_(freshDocJson, {
+          activeTabId: activeTabId,
+          selectionOnly: false,
+          isJa: isJa
+        });
+        (freshParsed.visualElements || []).forEach(v => { freshElementMap[v.targetId] = v; });
+        (freshParsed.tables || []).forEach(t => { freshElementMap[t.targetId] = t; });
+        freshBlocks = freshParsed.editableBlocks || [];
+      } catch (e) {
+        // Fallback to pre-Phase-1 coordinates if re-fetch fails
+      }
     }
 
     elementItems.forEach(elItem => {
@@ -2763,6 +3016,7 @@ function step4_applySuggestions(builtData, lang) {
 
   return {
     success: true,
+    hintOnly: isHintOnly,
     appliedSuggestionsCount: textItems.length + elementItems.length,
     appliedTextSuggestionsCount: textItems.length,
     appliedElementCommentsCount: appliedElementCommentsCount
@@ -2845,6 +3099,34 @@ function formatLearningComment_(item, isJa) {
     `${item.reason}`,
     ``,
     `🎓 Learning Point:`,
+    `${item.learningPoint}`
+  ].join('\n');
+}
+
+/**
+ * Formats the coaching hint comment anchored in Hint-Only Mode (without revealing suggestedText).
+ */
+function formatHintComment_(item, isJa) {
+  if (isJa) {
+    return [
+      `【DocuMentor AI｜💡 ヒントモード：${item.category}】`,
+      `🎯 対象箇所: 「${item.originalText}」`,
+      ``,
+      `💡 見直しの理由（問題点）:`,
+      `${item.reason}`,
+      ``,
+      `🎓 推敲のヒント（自分で書き直してみましょう！）:`,
+      `${item.learningPoint}`
+    ].join('\n');
+  }
+  return [
+    `[DocuMentor AI | 💡 Hint Mode: ${item.category}]`,
+    `🎯 Flagged Phrase: "${item.originalText}"`,
+    ``,
+    `💡 Issue to Check:`,
+    `${item.reason}`,
+    ``,
+    `🎓 Coaching Hint (Try Rewriting Yourself!):`,
     `${item.learningPoint}`
   ].join('\n');
 }
@@ -3171,7 +3453,7 @@ function buildAboutDialogHtml_(isJa) {
  * Builds the HTML string for the "🎓 Writing Coach & Learning Summary" custom modal dialog,
  * including a one-click Copy to Clipboard button.
  *
- * @param {Object} summaryPayload Object containing { learningSummary, overallFeedback, modelUsed, appliedCount }.
+ * @param {Object} summaryPayload Object containing { learningSummary, overallFeedback, modelUsed, appliedCount, hintOnly, analyzedResolvedCount }.
  * @param {boolean} isJa True if Japanese UI mode.
  * @return {string} Complete HTML document for the dialog.
  */
@@ -3183,6 +3465,7 @@ function buildLearningSummaryDialogHtml_(summaryPayload, isJa) {
   const overallFeedback = summaryPayload.overallFeedback || '';
   const modelUsed = summaryPayload.modelUsed || DEFAULT_MODEL;
   const appliedCount = Number(summaryPayload.appliedCount || 0);
+  const isHintOnly = Boolean(summaryPayload.hintOnly);
 
   const lblHeaderTitle = isJa
     ? '🎓 執筆者への学習アドバイスまとめ'
@@ -3191,12 +3474,17 @@ function buildLearningSummaryDialogHtml_(summaryPayload, isJa) {
   const isExistingMode = summaryPayload.sourceMode === 'existing';
   const sugCount = Number(summaryPayload.analyzedSuggestionsCount || 0);
   const comCount = Number(summaryPayload.analyzedCommentsCount || 0);
+  const resCount = Number(summaryPayload.analyzedResolvedCount || 0);
 
   let lblSubBadge;
   if (isExistingMode) {
     lblSubBadge = isJa
-      ? `既存の提案: ${sugCount}件 • コメント: ${comCount}件 • モデル: ${modelUsed}`
-      : `Analyzed Existing Suggestions: ${sugCount} • Comments: ${comCount} • Model: ${modelUsed}`;
+      ? `未解決の提案: ${sugCount}件 • コメント: ${comCount}件 • 解決済み履歴: ${resCount}件 • モデル: ${modelUsed}`
+      : `Active Suggestions: ${sugCount} • Comments: ${comCount} • Resolved History: ${resCount} • Model: ${modelUsed}`;
+  } else if (isHintOnly) {
+    lblSubBadge = isJa
+      ? `💡 ヒントモード（適用ヒント: ${appliedCount}件）• モデル: ${modelUsed}`
+      : `💡 Hint-Only Mode (Applied Hints: ${appliedCount}) • Model: ${modelUsed}`;
   } else {
     lblSubBadge = isJa
       ? `適用済み提案: ${appliedCount}件 • モデル: ${modelUsed}`
@@ -3206,7 +3494,9 @@ function buildLearningSummaryDialogHtml_(summaryPayload, isJa) {
   const lblOverall = isJa ? '📋 原稿全体・推敲結果の総合講評' : '📋 Overall Manuscript Evaluation';
   const lblRevisions = isExistingMode
     ? (isJa ? '🛠️ どのような修正・指摘が行われているか' : '🛠️ What Was Revised & Pointed Out')
-    : (isJa ? '🛠️ どのような修正を行ったか' : '🛠️ What Was Revised');
+    : (isHintOnly
+        ? (isJa ? '💡 指摘箇所と自力推敲ヒントの要点' : '💡 What Was Flagged & Hinted')
+        : (isJa ? '🛠️ どのような修正を行ったか' : '🛠️ What Was Revised'));
   const lblWeakness = isJa ? '🔍 苦手なところ・修正すべき傾向' : '🔍 Areas for Improvement & Writing Habits';
   const lblTips = isJa ? '🌱 今後の執筆に向けた学習アドバイス' : '🌱 Actionable Advice for Future Writing';
 
