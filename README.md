@@ -8,7 +8,7 @@
 [![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-V8-4285F4?logo=google&logoColor=white)](https://developers.google.com/apps-script)
 [![Google Docs API](https://img.shields.io/badge/Google%20Docs%20API-v1-34A853?logo=googledocs&logoColor=white)](https://developers.google.com/workspace/docs/api/how-tos/suggestions)
 [![Gemini API](https://img.shields.io/badge/Gemini%20API-Multimodal-8E75B2?logo=googlegemini&logoColor=white)](https://ai.google.dev/)
-[![Version](https://img.shields.io/badge/Version-v1.0.0-10b981.svg)](https://github.com/tanaikech/DocuMentorAI)
+[![Version](https://img.shields.io/badge/Version-v1.0.1-10b981.svg)](https://github.com/tanaikech/DocuMentorAI)
 
 ---
 
@@ -46,10 +46,10 @@ At the same time, because I wanted to verify the real-world capabilities of **Ge
 
 1. **Non-Destructive, Transparent AI Editing (`WriteMode.SUGGEST`)**
    Traditional AI writing assistants replace text directly or require copying and pasting between external chat windows and the document. By programmatically generating native Google Docs **Suggested Edits** alongside anchored comment replies (`addCommentReply`), authors retain 100% editorial control over every proposed change.
-2. **True Multimodal Manuscript Understanding**
-   Real-world technical reports, academic papers, and business proposals rely on the interplay between prose, tabular data, and visual charts. DocuMentor AI converts document tables into structured Markdown context, fetches embedded figures/charts as binary image data, temporarily uploads them via the **Gemini File API**, passes their file URIs (`fileData.fileUri`) to Gemini for cross-modal consistency checks and visual improvement suggestions, and automatically deletes the temporary files from the Gemini File API immediately after content generation to maintain a clean environment even for long manuscripts with many figures.
+2. **True Multimodal Manuscript Understanding via the Gemini File API**
+   Real-world technical reports, academic papers, and business proposals rely on the interplay between prose, tabular data, and visual charts. DocuMentor AI packages the target manuscript text and structured tables into a Markdown file alongside any embedded figures/charts (as binary image data), temporarily uploads them in parallel via the **Gemini File API**, passes their file URIs (`fileData.fileUri`) to Gemini for cross-modal consistency checks and visual improvement suggestions, and automatically deletes all temporary files from the Gemini File API immediately after content generation to maintain a clean environment and compact prompt payload even for long manuscripts.
 3. **Flexible Scope Control (Entire Active Tab vs. Selection Only)**
-   Authors can choose between proofreading the **entire active tab** (default) or toggling **Proofread Selection Only** to focus revisions strictly on a highlighted phrase, paragraph, table cell, table, or figure—while still supplying the full tab context to Gemini so that local edits remain consistent with the overall manuscript.
+   Authors can choose between proofreading the **entire active tab** (default) or toggling **Proofread Selection Only** to extract and upload strictly the highlighted phrase, paragraph, table cell, table, or figure—minimizing payload size and latency when focusing on a specific section.
 4. **Pedagogical Writing Coach for Continuous Self-Learning (From Both AI & Other Users' Reviews)**
    Instead of functioning as a black-box proofreader, DocuMentor AI explains *why* each edit was made (`Reason`) and provides a reusable takeaway (`Learning Point`). Upon completion of AI proofreading, it automatically opens a dedicated **Writing Coach & Learning Summary** custom dialog summarizing:
    - **Overall Manuscript Evaluation (`overallFeedback`)**
@@ -81,12 +81,12 @@ At the same time, because I wanted to verify the real-world capabilities of **Ge
 - **4-Stage Real-Time Process Dashboard:** Visualizes each step of the pipeline (`Step 1: Fetch` ➔ `Step 2: Gemini Analysis` ➔ `Step 3: Build Payload` ➔ `Step 4: Apply Suggestions & Comments`) with live metrics and expandable details.
 - **Proofreading Scope Toggle Switch:**
   - **OFF (Default):** Proofreads the entire currently active tab (text, tables, and figures/charts).
-  - **ON:** Proofreads only the user's current selection (`doc.getSelection()`) while preserving full-tab context.
+  - **ON:** Extracts and uploads only the user's current selection (`doc.getSelection()`) for fast, targeted proofreading.
 - **Multimodal Table & Figure Coaching (Created as Comments):** Because inline edit suggestions (`WriteMode.SUGGEST`) cannot be applied directly to figures, DocuMentor AI creates figure/chart and overall table review feedback as anchored Google Docs comments (`insertComment`) on tables (`TABLE_1`, etc.) and figures/charts (`VISUAL_1`, etc.) with targeted structural and visual advice.
 - **Learning Summary Generation from Existing Suggestions & Comments:** In addition to auto-generating the learning summary during **🚀 Run Proofreading**, the **🎓 Generate Learning Summary from Suggestions & Comments** button retrieves and analyzes both existing inline suggestions (`SuggestionThread`) and comment threads (`CommentThread`, including figure/table comments and human reviewer comments) already in the document to produce a structured **Writing Coach & Learning Summary** at any time.
 - **Custom Modal Dialogs:**
   - **🎓 Writing Coach & Learning Summary Dialog:** Automatically opens upon completion of proofreading—and can also be generated on demand from existing suggestions and comments via **🎓 Generate Learning Summary from Suggestions & Comments**—displaying a structured learning digest and a **Copy to Clipboard** button.
-  - **✦ About DocuMentor AI Dialog:** Opens when clicking `DocuMentor AI` in the sidebar header or footer, displaying the developer name (`Kanshi Tanaike`), version (`v1.0.0`), and GitHub repository link.
+  - **✦ About DocuMentor AI Dialog:** Opens when clicking `DocuMentor AI` in the sidebar header or footer, displaying the developer name (`Kanshi Tanaike`), version (`v1.0.1`), and GitHub repository link.
 
 ---
 
@@ -98,7 +98,7 @@ The following Mermaid diagram illustrates the end-to-end execution workflow of *
 flowchart TD
     User(["👤 User in Google Docs"]) --> Toggle{"Scope Toggle Switch"}
     Toggle -- "OFF (Default)" --> ScopeTab["📑 Target: Entire Active Tab<br/>(doc.getActiveTab)"]
-    Toggle -- "ON" --> ScopeSel["🎯 Target: Selected Content Only<br/>(doc.getSelection + Full Tab Context)"]
+    Toggle -- "ON" --> ScopeSel["🎯 Target: Selected Content Only<br/>(doc.getSelection)"]
 
     ScopeTab --> Step1
     ScopeSel --> Step1
@@ -107,7 +107,7 @@ flowchart TD
         direction TB
         Step1["<b>STEP 1: Fetch Document & Parse Structure</b><br/>• Call <code>documents.get</code> with <code>includeTabsContent=true</code>,<br/>  <code>suggestionsViewMode=SUGGESTIONS_INLINE</code>,<br/>  <code>commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED</code><br/>• Extract Settled Text Blocks, Tables (Markdown),<br/>  Figures/Charts (Content URIs), and Existing Suggestions"]
 
-        Step2["<b>STEP 2: Multimodal Analysis & Coaching via Gemini</b><br/>• Upload Figure/Chart images via Gemini File API & pass URIs<br/>• Send Full Tab Context + Target Elements + Custom Prompt<br/>  to <code>gemini-3.8-flash</code> or <code>gemini-4-argon</code><br/>• Delete uploaded files immediately after generation (Clean state)<br/>• Output structured JSON: Inline Suggestions, Element Suggestions,<br/>  and Author Learning Summary (100% EN or 100% JA)"]
+        Step2["<b>STEP 2: Multimodal Analysis & Coaching via Gemini</b><br/>• Upload Manuscript (or Selected Excerpt) Markdown file & Figure images<br/>  in parallel via Gemini File API & pass <code>fileData.fileUri</code><br/>• Send compact prompt + File URIs to <code>gemini-3.8-flash</code> or <code>gemini-4-argon</code><br/>• Delete all uploaded temporary files immediately in <code>finally</code> block<br/>• Output structured JSON: Inline Suggestions, Element Suggestions,<br/>  and Author Learning Summary (100% EN or 100% JA)"]
 
         Step3["<b>STEP 3: Build Suggestion & Comment Payloads</b><br/>• Map exact text matches to UTF-16 character indices<br/>• Sort text edits in descending index order (bottom-to-top)<br/>• Construct <code>deleteContentRange</code> + <code>insertText</code> with<br/>  <code>writeControl: { writeMode: 'SUGGEST' }</code> and <code>tabId</code>"]
 
@@ -235,6 +235,11 @@ DocuMentorAI/
 ---
 
 ## Version History
+
+- **v1.0.1**
+  - Updated Step 2 to upload the target manuscript text and tables as a Markdown file (`text/markdown`) via the **Gemini File API** alongside any embedded figures/charts in parallel (`UrlFetchApp.fetchAll`), referencing all manuscript and visual assets via `fileData.fileUri` and deleting them in the `finally` block to keep the `generateContent` prompt payload compact even for large documents.
+  - Updated **Proofread Selection Only** mode to extract and upload strictly the selected portion (selected text blocks, tables, and figures) rather than the entire tab.
+  - Optimized client-server payload transfer between the sidebar UI and Apps Script backend.
 
 - **v1.0.0** (Initial Release)
   - Implemented 4-stage proofreading pipeline using Google Docs API `v1` (`SUGGESTIONS_INLINE`, `COMMENTS_VIEW_MODE_INCLUDED`, `WriteMode.SUGGEST`, `addCommentReply`, `insertComment`, `acceptSuggestion`, `rejectSuggestion`, `deleteComment`).

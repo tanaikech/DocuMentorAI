@@ -411,7 +411,7 @@
       <div class="brand-icon">✦</div>
       <div>
         <span class="brand-title">DocuMentor AI <span class="brand-info-dot">ⓘ</span></span>
-        <span id="brandSub" class="brand-sub">v1.0.0 • AI Proofreading Coach</span>
+        <span id="brandSub" class="brand-sub">v1.0.1 • AI Proofreading Coach</span>
       </div>
     </div>
     <div class="header-right">
@@ -568,7 +568,7 @@
 
   <!-- Footer -->
   <div class="app-footer">
-    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.0 • Created by Kanshi Tanaike
+    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.1 • Created by Kanshi Tanaike
   </div>
 
   <script>
@@ -578,7 +578,7 @@
 
     const I18N = {
       en: {
-        brandSub: 'v1.0.0 • AI Proofreading Coach',
+        brandSub: 'v1.0.1 • AI Proofreading Coach',
         brandTooltip: 'Click to view Developer, GitHub Repository & Version info',
         settingsTitle: '⚙️ AI Engine & API Settings',
         apiKeyLabel: 'Gemini API Key',
@@ -662,7 +662,7 @@
         }
       },
       ja: {
-        brandSub: 'v1.0.0 • AI推敲＆学習コーチ',
+        brandSub: 'v1.0.1 • AI推敲＆学習コーチ',
         brandTooltip: 'クリックして開発者・GitHubリポジトリ・バージョン情報を表示',
         settingsTitle: '⚙️ AI エンジン & API設定',
         apiKeyLabel: 'Gemini API キー',
@@ -1257,6 +1257,13 @@
       const t = I18N[currentLang];
       setStepStatus(3, 'active', t.states.running, true);
 
+      const step3TargetData = {
+        activeTabId: docData.activeTabId,
+        editableBlocks: docData.editableBlocks,
+        tables: docData.tables,
+        visualElements: docData.visualElements
+      };
+
       google.script.run
         .withSuccessHandler(builtData => {
           renderStep3Result();
@@ -1277,7 +1284,7 @@
           setStepStatus(3, 'error', t.states.error, true);
           showError(err);
         })
-        .step3_buildRequestBody(docData, aiResult, currentLang);
+        .step3_buildRequestBody(step3TargetData, aiResult, currentLang);
     }
 
     function executeStep4(builtData, aiResult) {

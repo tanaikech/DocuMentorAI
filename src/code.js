@@ -1,12 +1,12 @@
 /**
  * Application Name: DocuMentor AI
  * Description: AI-Powered Proofreading & Multimodal Suggestion Coach for Google Docs
- * Version: v1.0.0
+ * Version: v1.0.1
  * Author: Kanshi Tanaike
  */
 
 const APP_NAME = 'DocuMentor AI';
-const APP_VERSION = 'v1.0.0';
+const APP_VERSION = 'v1.0.1';
 const APP_AUTHOR = 'Kanshi Tanaike';
 const APP_REPO_URL = 'https://github.com/tanaikech/DocuMentorAI';
 
@@ -996,11 +996,17 @@ function parseDocumentStructure_(docJson, options) {
     }
   });
 
+  const allVisualsCount = allVisualElements.length;
+  const allTablesCount = allTablesList.length;
+
   // Scope filtering when selectionOnly is enabled
   let targetEditableBlocks = allEditableBlocks;
   let targetTablesList = allTablesList;
   let targetVisualElements = allVisualElements;
   let selectedTextPreview = '';
+  let effectiveAnnotatedText = annotatedText;
+  let selectionMinIndex = null;
+  let selectionMaxIndex = null;
 
   if (opts.selectionOnly && Array.isArray(opts.selectionDescriptors) && opts.selectionDescriptors.length > 0) {
     const filteredBlocks = [];
@@ -1131,6 +1137,30 @@ function parseDocumentStructure_(docJson, options) {
     }
 
     selectedTextPreview = targetEditableBlocks.map(b => b.text).join('\n');
+
+    // Build scoped annotated text containing strictly the selected content
+    const scopedParts = [];
+    if (selectedTextPreview) {
+      scopedParts.push(selectedTextPreview);
+    }
+    targetTablesList.forEach(t => {
+      scopedParts.push(t.markdown);
+    });
+    targetVisualElements.forEach(v => {
+      scopedParts.push(`[${v.targetId} (${v.type}): Title="${v.title || ''}", Description="${v.description || ''}"]`);
+    });
+    effectiveAnnotatedText = scopedParts.join('\n\n');
+
+    // Compute min/max character index of the selected items to filter existing suggestions
+    const rangeStarts = [];
+    const rangeEnds = [];
+    targetEditableBlocks.forEach(b => { rangeStarts.push(b.startIndex); rangeEnds.push(b.endIndex); });
+    targetTablesList.forEach(t => { rangeStarts.push(t.startIndex); rangeEnds.push(t.endIndex); });
+    targetVisualElements.forEach(v => { rangeStarts.push(v.startIndex); rangeEnds.push(v.endIndex); });
+    if (rangeStarts.length > 0) {
+      selectionMinIndex = Math.min.apply(null, rangeStarts);
+      selectionMaxIndex = Math.max.apply(null, rangeEnds);
+    }
   } else {
     // Clean internal indexing metadata from blocks
     targetEditableBlocks = allEditableBlocks.map(b => ({
@@ -1169,7 +1199,13 @@ function parseDocumentStructure_(docJson, options) {
     }
   });
 
-  const existingSuggestionsList = Object.values(existingSuggestionsMap);
+  let existingSuggestionsList = Object.values(existingSuggestionsMap);
+  if (opts.selectionOnly && selectionMinIndex !== null && selectionMaxIndex !== null) {
+    existingSuggestionsList = existingSuggestionsList.filter(
+      s => !(s.endIndex < selectionMinIndex || s.startIndex > selectionMaxIndex)
+    );
+  }
+
   const trimmedFullText = plainText.trim();
   const effectiveCharCount = opts.selectionOnly
     ? selectedTextPreview.trim().length
@@ -1178,8 +1214,8 @@ function parseDocumentStructure_(docJson, options) {
   const isEmpty =
     trimmedFullText.length === 0 &&
     previewAcceptedText.trim().length === 0 &&
-    allTablesList.length === 0 &&
-    allVisualElements.length === 0 &&
+    allTablesCount === 0 &&
+    allVisualsCount === 0 &&
     existingSuggestionsList.length === 0 &&
     activeCommentsList.length === 0;
 
@@ -1192,10 +1228,7 @@ function parseDocumentStructure_(docJson, options) {
     selectedTextPreview: selectedTextPreview,
     isEmpty: isEmpty,
     charCount: effectiveCharCount,
-    fullTabCharCount: trimmedFullText.length,
-    plainText: plainText,
-    previewAcceptedText: previewAcceptedText,
-    annotatedText: annotatedText,
+    annotatedText: effectiveAnnotatedText,
     editableBlocks: targetEditableBlocks,
     existingSuggestions: existingSuggestionsList,
     existingComments: activeCommentsList,
@@ -1487,14 +1520,39 @@ function step2_generateProofreading(docData, customPrompt, modelName, lang) {
   const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
   const promptData = buildProofreadingPromptAndSchema_(docData, customPrompt, isJa);
 
-  const userParts = [{ text: promptData.userMessage }];
+  const userParts = [];
   let uploadedFiles = [];
   let parsedResult;
 
   try {
-    if (docData.visualElements && docData.visualElements.length > 0) {
-      uploadedFiles = uploadVisualElementsToGeminiFiles_(docData.visualElements, apiKey);
-      uploadedFiles.forEach(uf => {
+    uploadedFiles = uploadManuscriptAndVisualsToGeminiFiles_(
+      promptData.manuscriptFileContent,
+      promptData.manuscriptFileName,
+      docData.visualElements,
+      apiKey
+    );
+
+    const manuscriptFile = uploadedFiles.find(uf => uf.kind === 'MANUSCRIPT');
+    if (manuscriptFile) {
+      userParts.push({
+        text: isJa
+          ? `[添付原稿ファイル (${manuscriptFile.title})]`
+          : `[Attached Manuscript File (${manuscriptFile.title})]`
+      });
+      userParts.push({
+        fileData: {
+          mimeType: manuscriptFile.mimeType,
+          fileUri: manuscriptFile.fileUri
+        }
+      });
+    } else if (promptData.manuscriptFileContent) {
+      // Fallback to inline content if File API upload for manuscript fails
+      userParts.push({ text: promptData.manuscriptFileContent });
+    }
+
+    uploadedFiles
+      .filter(uf => uf.kind === 'VISUAL')
+      .forEach(uf => {
         userParts.push({ text: `\n[Attached Image File for ${uf.targetId} (${uf.type}: "${uf.title}")] ` });
         userParts.push({
           fileData: {
@@ -1503,7 +1561,8 @@ function step2_generateProofreading(docData, customPrompt, modelName, lang) {
           }
         });
       });
-    }
+
+    userParts.push({ text: '\n' + promptData.userMessage });
 
     const payload = {
       systemInstruction: { parts: [{ text: promptData.systemPrompt }] },
@@ -1577,14 +1636,38 @@ function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelN
   const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
   const promptData = buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa);
 
-  const userParts = [{ text: promptData.userMessage }];
+  const userParts = [];
   let uploadedFiles = [];
   let parsedResult;
 
   try {
-    if (docData.visualElements && docData.visualElements.length > 0) {
-      uploadedFiles = uploadVisualElementsToGeminiFiles_(docData.visualElements, apiKey);
-      uploadedFiles.forEach(uf => {
+    uploadedFiles = uploadManuscriptAndVisualsToGeminiFiles_(
+      promptData.manuscriptFileContent,
+      promptData.manuscriptFileName,
+      docData.visualElements,
+      apiKey
+    );
+
+    const manuscriptFile = uploadedFiles.find(uf => uf.kind === 'MANUSCRIPT');
+    if (manuscriptFile) {
+      userParts.push({
+        text: isJa
+          ? `[添付原稿・既存レビュー一覧ファイル (${manuscriptFile.title})]`
+          : `[Attached Manuscript & Existing Reviews File (${manuscriptFile.title})]`
+      });
+      userParts.push({
+        fileData: {
+          mimeType: manuscriptFile.mimeType,
+          fileUri: manuscriptFile.fileUri
+        }
+      });
+    } else if (promptData.manuscriptFileContent) {
+      userParts.push({ text: promptData.manuscriptFileContent });
+    }
+
+    uploadedFiles
+      .filter(uf => uf.kind === 'VISUAL')
+      .forEach(uf => {
         userParts.push({ text: `\n[Attached Image File for ${uf.targetId} (${uf.type}: "${uf.title}")] ` });
         userParts.push({
           fileData: {
@@ -1593,7 +1676,8 @@ function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelN
           }
         });
       });
-    }
+
+    userParts.push({ text: '\n' + promptData.userMessage });
 
     const payload = {
       systemInstruction: { parts: [{ text: promptData.systemPrompt }] },
@@ -1633,20 +1717,22 @@ function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelN
 }
 
 /**
- * Builds the system instruction, user message, and structured JSON schema for
- * generating a "Writing Coach & Learning Summary" from existing suggestions and comments
- * in the Google Document (including feedback from other human users/reviewers or AI).
+ * Builds the system instruction, manuscript Markdown file content, compact user message,
+ * and structured JSON schema for generating a "Writing Coach & Learning Summary" from
+ * existing suggestions and comments in the Google Document.
  *
  * @param {Object} docData Parsed document structure from Step 1.
  * @param {string} customPrompt Optional user instruction.
  * @param {boolean} isJa True if Japanese UI mode.
- * @return {Object} { systemPrompt, userMessage, responseSchema }
+ * @return {Object} { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
  */
 function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa) {
   const existingSuggestions = Array.isArray(docData.existingSuggestions) ? docData.existingSuggestions : [];
   const existingComments = Array.isArray(docData.existingComments) ? docData.existingComments : [];
   const hasTables = docData.tables && docData.tables.length > 0;
   const hasVisuals = docData.visualElements && docData.visualElements.length > 0;
+  const isSelectionOnly = Boolean(docData.selectionOnly);
+  const manuscriptFileName = isSelectionOnly ? 'selected_reviews_context.md' : 'manuscript_reviews_context.md';
 
   const formatSuggestionLine = (s, idx) => {
     const delTxt = (s.deletedText || '').replace(/\n/g, ' ').trim();
@@ -1696,11 +1782,11 @@ function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJ
 
   if (isJa) {
     let systemPrompt = `あなたはプロの文章校正者・データビジュアライゼーションの専門家・ライティングコーチです。
-Google Docsの原稿内に既に存在している「提案（サジェスト：他のユーザー・査読者・共同編集者またはAIによる削除・挿入の修正案）」および「コメント・返信スレッド」を原稿全体の文脈（本文・表・図）と照らし合わせて深く分析し、原稿を書いた執筆者がこれらの指摘・提案から効果的に自己学習できるための「🎓 執筆者への学習アドバイスまとめ（Writing Coach & Learning Summary）」を生成してください。
+添付された原稿Markdownファイル（および添付された図表画像ファイル）に記載されている「既存の提案（サジェスト：他のユーザー・査読者・共同編集者またはAIによる削除・挿入の修正案）」および「コメント・返信スレッド」を原稿文脈（本文・表・図）と照らし合わせて深く分析し、原稿を書いた執筆者がこれらの指摘・提案から効果的に自己学習できるための「🎓 執筆者への学習アドバイスまとめ（Writing Coach & Learning Summary）」を生成してください。
 【言語ルール】出力するすべての項目は**すべて日本語のみ**で記述してください。
 
 【分析とコーチングの重点指針】
-1. ドキュメント内に存在する他のユーザー（同僚・上司・編集者・レビュアー）やAIからのインライン修正提案（削除➔挿入）およびコメントの意図・背景理由を正確に読み取ってください。
+1. 添付ファイル内に存在する他のユーザー（同僚・上司・編集者・レビュアー）やAIからのインライン修正提案（削除➔挿入）およびコメントの意図・背景理由を正確に読み取ってください。
 2. なぜそれらの箇所が修正提案されたのか、またコメントで何が指摘されているのかを体系的に整理し、執筆者が今後のライティングで同じミスや弱点を繰り返さないための具体的・実践的な学びへと昇華させてください。
 3. 以下の3点を learningSummary として分かりやすくまとめてください：
    - revisionsDigest（どのような修正・指摘が行われているか）: 既存の提案やコメントで行われている主な修正・指摘内容の要点まとめ
@@ -1714,20 +1800,22 @@ Google Docsの原稿内に既に存在している「提案（サジェスト：
 「${customPrompt.trim()}」`;
     }
 
-    const userMessage = `■ アクティブなタブ全体のコンテキスト（インライン提案マーカー・表・図注釈付き）:
+    const manuscriptFileContent = `# 対象原稿コンテキスト（インライン提案マーカー・表・図注釈付き）
 ${docData.annotatedText}
 
-■ ドキュメント内に存在するインライン修正提案一覧（計 ${existingSuggestions.length} 件）:
+# ドキュメント内に存在するインライン修正提案一覧（計 ${existingSuggestions.length} 件）
 ${suggestionsContext}
 
-■ ドキュメント内に存在するコメント＆返信スレッド一覧（計 ${existingComments.length} 件）:
+# ドキュメント内に存在するコメント＆返信スレッド一覧（計 ${existingComments.length} 件）
 ${commentsContext}
 
-■ ドキュメント内の表一覧:
+# 対象の表一覧
 ${tablesContext}
 
-■ ドキュメント内の図・チャート一覧:
+# 対象の図・チャート一覧
 ${visualsContext}`;
+
+    const userMessage = `添付された原稿・既存レビュー一覧ファイル（${manuscriptFileName}）および添付画像（存在する場合）を詳細に分析し、指定されたJSONスキーマに従って「執筆者への学習アドバイスまとめ（learningSummary）」および個別解説リスト（analyzedItems）を出力してください。`;
 
     const responseSchema = {
       type: 'OBJECT',
@@ -1785,16 +1873,16 @@ ${visualsContext}`;
       required: ['overallFeedback', 'learningSummary', 'analyzedItems']
     };
 
-    return { systemPrompt, userMessage, responseSchema };
+    return { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema };
   }
 
   // English UI Mode ('en')
   let systemPrompt = `You are a professional editor, data visualization specialist, and pedagogical writing coach.
-Your task is to deeply analyze the existing inline suggestions (deletions and insertions proposed by other human users/reviewers, collaborators, or AI) and the existing comment threads in the Google Document alongside the full manuscript context (text, tables, and figures), and generate a structured "🎓 Writing Coach & Learning Summary" so the author can effectively learn from these reviews and suggestions.
+Your task is to deeply analyze the existing inline suggestions (deletions and insertions proposed by other human users/reviewers, collaborators, or AI) and the existing comment threads contained in the attached manuscript Markdown file (alongside any attached figure images), and generate a structured "🎓 Writing Coach & Learning Summary" so the author can effectively learn from these reviews and suggestions.
 [LANGUAGE RULE] All output fields MUST be written **100% in English**.
 
 [COACHING & ANALYSIS GUIDELINES]
-1. Accurately interpret the intent and editorial rationale behind the existing inline suggestions (Deleted ➔ Inserted) and reviewer comments/replies present in the document.
+1. Accurately interpret the intent and editorial rationale behind the existing inline suggestions (Deleted ➔ Inserted) and reviewer comments/replies present in the attached file.
 2. Synthesize why those edits and comments were made so the author can understand their own recurring writing habits and avoid repeating the same weaknesses in future drafts.
 3. Provide a clear, high-impact "learningSummary" covering:
    - revisionsDigest (What Was Revised / Pointed Out): A concise summary of the key revisions, corrections, and reviewer comments present in the document.
@@ -1808,20 +1896,22 @@ Incorporate the following instructions as high-priority criteria when analyzing 
 "${customPrompt.trim()}"`;
   }
 
-  const userMessage = `■ Full Active Tab Context (with inline suggestion markers, table markdown, and visual markers):
+  const manuscriptFileContent = `# Target Manuscript Context (with inline suggestion markers, table markdown, and visual markers)
 ${docData.annotatedText}
 
-■ Existing Inline Suggestions in Document (Total: ${existingSuggestions.length}):
+# Existing Inline Suggestions in Scope (Total: ${existingSuggestions.length})
 ${suggestionsContext}
 
-■ Existing Comment Threads & Replies in Document (Total: ${existingComments.length}):
+# Existing Comment Threads & Replies in Scope (Total: ${existingComments.length})
 ${commentsContext}
 
-■ Tables in Document:
+# Tables in Scope
 ${tablesContext}
 
-■ Figures & Charts in Document:
+# Figures & Charts in Scope
 ${visualsContext}`;
+
+  const userMessage = `Please analyze the attached manuscript and existing reviews Markdown file (${manuscriptFileName}) along with any attached figure images, and generate the "Writing Coach & Learning Summary" and "analyzedItems" adhering strictly to the response JSON schema.`;
 
   const responseSchema = {
     type: 'OBJECT',
@@ -1879,47 +1969,50 @@ ${visualsContext}`;
     required: ['overallFeedback', 'learningSummary', 'analyzedItems']
   };
 
-  return { systemPrompt, userMessage, responseSchema };
+  return { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema };
 }
 
 /**
- * Builds the localized system instruction, user message, and structured JSON schema
- * for Step 2, enforcing strict 100% single-language output ('ja' or 'en') and
- * generating the comprehensive author learning summary.
+ * Builds the localized system instruction, manuscript Markdown file content, compact user message,
+ * and structured JSON schema for Step 2, enforcing strict 100% single-language output ('ja' or 'en')
+ * and generating the comprehensive author learning summary.
+ *When `docData.selectionOnly` is true, only the selected portion (selected blocks, selected tables,
+ * and selected figures) is packaged into the uploaded Markdown file.
  *
  * @param {Object} docData Parsed document structure from Step 1.
  * @param {string} customPrompt Optional user instruction.
  * @param {boolean} isJa True if Japanese UI mode, false if English UI mode.
- * @return {Object} { systemPrompt, userMessage, responseSchema }
+ * @return {Object} { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
  */
 function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa) {
   const hasExisting = docData.existingSuggestions && docData.existingSuggestions.length > 0;
   const hasTables = docData.tables && docData.tables.length > 0;
   const hasVisuals = docData.visualElements && docData.visualElements.length > 0;
   const isSelectionOnly = Boolean(docData.selectionOnly);
+  const manuscriptFileName = isSelectionOnly ? 'selected_excerpt.md' : 'manuscript_context.md';
 
   if (isJa) {
     let systemPrompt = `あなたはプロの文章校正者・データビジュアライゼーションの専門家・ライティングコーチです。
-Google Docs上の原稿全体の文脈を理解し、推敲後の改善内容も踏まえた上で、具体的な修正提案と、原稿を書いたユーザーの今後の学習のためのシンプルなアドバイスまとめを出力してください。
+添付された原稿Markdownファイル（${manuscriptFileName}）および図表画像ファイルの内容を理解し、推敲後の改善内容も踏まえた上で、具体的な修正提案と、原稿を書いたユーザーの今後の学習のためのシンプルなアドバイスまとめを出力してください。
 【言語ルール】出力するすべての項目（カテゴリ名、理由、講評、学習アドバイス等）は**すべて日本語のみ**で記述してください。
 
 【厳守ルール】
-1. テキストの推敲提案（suggestions）における元のフレーズ（originalText）は、後述する「推敲対象の確定済みテキストブロック一覧」の中に**一字一句完全に一致して存在する部分文字列**（改行を含まない）を指定してください。
+1. テキストの推敲提案（suggestions）における元のフレーズ（originalText）は、添付された原稿Markdownファイル内の「推敲対象の確定済みテキストブロック一覧」の中に**一字一句完全に一致して存在する部分文字列**（改行を含まない）を指定してください。
 2. 推敲対象の表（TABLE_1 等）が含まれる場合、表のセル内の文言修正は「suggestions」に含め、表全体の構成・項目設計・データ表現に関するコメントがある場合は「elementSuggestions」に targetId（例: "TABLE_1"）を指定して出力してください。
 3. 【重要：図・チャートへの推敲コメント作成（必須）】Google Docsでは図やチャート（VISUAL_1 等）自体に対して直接インラインの置換提案（WriteMode.SUGGEST）を行うことができないため、図に対する推敲フィードバックは**Google Docsのコメント（insertComment）として図に付与**されます。推敲対象の図やチャート（VISUAL_1 等）が1つ以上含まれる場合は、添付された画像データを視覚的に解析し、**すべての対象図（VISUAL_1 等）それぞれについて最低1件以上**、図自体の視認性・ラベル・データ表現・または本文との整合性に関する推敲コメントを「elementSuggestions」に targetId（例: "VISUAL_1"）を指定して**必ず出力**してください（空配列にしないでください）。
-4. 原稿全体の文脈と今回の推敲後の内容を深く比較・理解した上で、執筆したユーザーの今後の学習用アドバイス（learningSummary）として以下の3点をシンプルかつ具体的にまとめてください：
+4. 原稿の内容と今回の推敲後の内容を深く比較・理解した上で、執筆したユーザーの今後の学習用アドバイス（learningSummary）として以下の3点をシンプルかつ具体的にまとめてください：
    - revisionsDigest（どのような修正を行ったか）: 今回の推敲でどのような種類の修正・改善および図表コメントを行ったかの要点まとめ
    - weakPointsAndHabits（苦手なところ・修正すべき傾向）: 原稿から見受けられるユーザーの文章・構成・図表表現上のクセや弱点、注意すべきポイント
    - actionableTips（今後の執筆に向けた学習アドバイス）: 次回からの執筆で意識すべき実践的でシンプルな改善アクション`;
 
     if (isSelectionOnly) {
       systemPrompt += `\n\n【重要：選択範囲のみの推敲モード】
-現在「選択範囲のみを推敲」モードが有効です。原稿全体の流れや文脈を理解するためにアクティブなタブ全体のテキストも提供されていますが、実際の修正提案（suggestions および elementSuggestions）は、必ず**「推敲対象の確定済みテキストブロック一覧」「推敲対象の表一覧」「推敲対象の図・チャート一覧」に含まれる選択範囲内の要素のみ**に対して行ってください。`;
+現在「選択範囲のみを推敲」モードが有効であり、添付された原稿Markdownファイル（${manuscriptFileName}）には**ユーザーが選択した範囲の要素のみ**が含まれています。修正提案（suggestions および elementSuggestions）は、添付ファイル内の「推敲対象の確定済みテキストブロック一覧」「推敲対象の表一覧」「推敲対象の図・チャート一覧」に含まれる要素のみに対して行ってください（選択範囲外の要素が存在しないことを理由に指摘を行わないでください）。`;
     }
 
     if (hasExisting) {
       systemPrompt += `\n\n【重要：既存の修正提案への配慮】
-このタブには既に以下の修正案が提案されています：
+対象範囲には既に以下の修正案が提案されています：
 ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}): 削除="${s.deletedText.replace(/\n/g, '')}" ➔ 挿入="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
 これらの提案済みの修正案を考慮したうえで、まだ提案が掛かっていない確定済みテキストや表・図・チャートに対して追加の提案を行ってください。`;
     }
@@ -1942,28 +2035,31 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
       ? docData.visualElements.map(v => `- ${v.targetId}: 種別=${v.type}, タイトル="${v.title}", 説明="${v.description}"`).join('\n')
       : 'なし';
 
-    const userMessage = `■ アクティブなタブ全体のコンテキスト（原稿全体の理解用・注釈付き）:
-${docData.annotatedText}
+    const manuscriptSections = [];
+    if (!isSelectionOnly && (hasTables || hasVisuals || hasExisting)) {
+      manuscriptSections.push(`# 原稿全体の構造・配置コンテキスト（注釈付き）\n${docData.annotatedText}`);
+    }
+    manuscriptSections.push(`# 推敲対象の確定済みテキストブロック一覧\n（suggestions の originalText は必ずこの中の文字列から完全一致で抜き出してください）\n${blocksContext}`);
+    if (hasTables) {
+      manuscriptSections.push(`# 推敲対象の表（テーブル）一覧\n${tablesContext}`);
+    }
+    if (hasVisuals) {
+      manuscriptSections.push(`# 推敲対象の図・チャート一覧\n${visualsContext}`);
+    }
 
-■ 推敲対象の表（テーブル）一覧:
-${tablesContext}
-
-■ 推敲対象の図・チャート一覧:
-${visualsContext}
-
-■ 推敲対象の確定済みテキストブロック一覧（suggestions の originalText は必ずこの中の文字列から完全一致で抜き出してください）:
-${blocksContext}`;
+    const manuscriptFileContent = manuscriptSections.join('\n\n');
+    const userMessage = `添付された原稿Markdownファイル（${manuscriptFileName}）および添付された図表画像ファイル（存在する場合）を読み取り、推敲提案（suggestions）、図表への推敲コメント（elementSuggestions）、および執筆者への学習アドバイスまとめ（learningSummary）を指定されたJSONスキーマに従って出力してください。`;
 
     const responseSchema = {
       type: 'OBJECT',
       properties: {
         overallFeedback: {
           type: 'STRING',
-          description: '原稿全体および推敲結果に対する総合講評（日本語）'
+          description: '原稿および推敲結果に対する総合講評（日本語）'
         },
         learningSummary: {
           type: 'OBJECT',
-          description: '原稿全体と推敲後の内容を踏まえた、ユーザーへの学習用アドバイスまとめ（すべて日本語）',
+          description: '原稿と推敲後の内容を踏まえた、ユーザーへの学習用アドバイスまとめ（すべて日本語）',
           properties: {
             revisionsDigest: {
               type: 'STRING',
@@ -2048,31 +2144,31 @@ ${blocksContext}`;
       required: ['overallFeedback', 'learningSummary', 'existingSuggestionsNote', 'suggestions', 'elementSuggestions']
     };
 
-    return { systemPrompt, userMessage, responseSchema };
+    return { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema };
   }
 
   // English UI Mode ('en')
   let systemPrompt = `You are a professional editor, data visualization specialist, and writing coach.
-Your task is to comprehensively understand the full manuscript context and the proofread revisions in Google Docs, propose specific improvements, and provide a concise, structured learning advice summary for the author.
+Your task is to comprehensively understand the manuscript content in the attached Markdown file (${manuscriptFileName}) along with any attached figure images, propose specific improvements, and provide a concise, structured learning advice summary for the author.
 [LANGUAGE RULE] All output fields (categories, reasons, feedback, and learning advice—excluding quoted source text from the document if the document itself is in another language) MUST be written **100% in English**.
 
 [STRICT RULES]
-1. In text "suggestions", each "originalText" MUST be an exact, character-for-character substring found within the "Target Editable Settled Text Blocks" (do not include newlines).
+1. In text "suggestions", each "originalText" MUST be an exact, character-for-character substring found within the "Target Editable Settled Text Blocks" section of the attached Markdown file (do not include newlines).
 2. When target tables (e.g., TABLE_1) are present, propose cell text edits in "suggestions", and provide structural or data-presentation review comments for the table as a whole in "elementSuggestions" using its targetId (e.g., "TABLE_1").
 3. [MANDATORY: Figure & Chart Review Comments] Because inline edit suggestions (WriteMode.SUGGEST) cannot be applied directly to figures or charts in Google Docs, figure proofreading feedback is created as a **Google Docs Comment (insertComment)** anchored to the figure. Whenever one or more target figures or charts (e.g., VISUAL_1) are present, you MUST visually analyze the attached image data and output **at least one figure review comment in "elementSuggestions" for EVERY target figure (e.g., targetId: "VISUAL_1")** covering visual clarity, labels, data presentation, or alignment with the body text (do not leave elementSuggestions empty when figures exist).
-4. Based on a deep understanding of both the full manuscript and your proofread revisions, synthesize a simple, high-impact "learningSummary" for the author covering:
+4. Based on a deep understanding of the attached manuscript and your proofread revisions, synthesize a simple, high-impact "learningSummary" for the author covering:
    - revisionsDigest (What Was Revised): A clear summary of the key types of edits, improvements, and figure/table review comments made during this proofreading session.
    - weakPointsAndHabits (Areas for Improvement & Writing Habits): Patterns, recurring weaknesses, or tendencies observed in the author's draft and visual presentation that needed revision.
    - actionableTips (Future Learning Advice): Simple, practical takeaways the author can apply to improve their future writing.`;
 
   if (isSelectionOnly) {
     systemPrompt += `\n\n[IMPORTANT: Proofread Selection Only Mode]
-"Proofread Selection Only" mode is currently enabled. While the full active tab is provided so you understand the overall context and flow of the manuscript, you MUST restrict your "suggestions" and "elementSuggestions" strictly to the selected items listed in "Target Editable Settled Text Blocks", "Target Tables", and "Target Figures & Charts".`;
+"Proofread Selection Only" mode is currently enabled, and the attached Markdown file (${manuscriptFileName}) contains ** strictly the user's selected portion**. You MUST restrict your "suggestions" and "elementSuggestions" strictly to the selected items listed in "Target Editable Settled Text Blocks", "Target Tables", and "Target Figures & Charts" (do not critique the absence of unselected paragraphs, tables, or figures outside this excerpt).`;
   }
 
   if (hasExisting) {
     systemPrompt += `\n\n[IMPORTANT: Consideration of Existing Suggestions]
-The active tab already contains the following pending suggestions:
+The target scope already contains the following pending suggestions:
 ${docData.existingSuggestions.map((s, idx) => `- Suggestion ${idx + 1} (ID: ${s.id}): Delete="${s.deletedText.replace(/\n/g, '')}" -> Insert="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
 Please take these existing suggestions into account and propose additional improvements on the remaining settled text blocks, tables, and figures/charts.`;
   }
@@ -2095,17 +2191,20 @@ Incorporate the following instructions as high-priority criteria in addition to 
     ? docData.visualElements.map(v => `- ${v.targetId}: Type=${v.type}, Title="${v.title}", Description="${v.description}"`).join('\n')
     : 'None';
 
-  const userMessage = `■ Full Active Tab Context (for holistic manuscript understanding, with annotations):
-${docData.annotatedText}
+  const manuscriptSections = [];
+  if (!isSelectionOnly && (hasTables || hasVisuals || hasExisting)) {
+    manuscriptSections.push(`# Manuscript Structural Layout & Annotations\n${docData.annotatedText}`);
+  }
+  manuscriptSections.push(`# Target Editable Settled Text Blocks\n("originalText" in "suggestions" MUST be extracted as an exact match from these blocks)\n${blocksContext}`);
+  if (hasTables) {
+    manuscriptSections.push(`# Target Tables\n${tablesContext}`);
+  }
+  if (hasVisuals) {
+    manuscriptSections.push(`# Target Figures & Charts\n${visualsContext}`);
+  }
 
-■ Target Tables:
-${tablesContext}
-
-■ Target Figures & Charts (Image data attached below):
-${visualsContext}
-
-■ Target Editable Settled Text Blocks ("originalText" in "suggestions" MUST be extracted as an exact match from these blocks):
-${blocksContext}`;
+  const manuscriptFileContent = manuscriptSections.join('\n\n');
+  const userMessage = `Please read the attached manuscript Markdown file (${manuscriptFileName}) along with any attached figure image files, and generate the proofreading suggestions, element review comments, and Writing Coach & Learning Summary adhering strictly to the JSON response schema.`;
 
   const responseSchema = {
     type: 'OBJECT',
@@ -2116,7 +2215,7 @@ ${blocksContext}`;
       },
       learningSummary: {
         type: 'OBJECT',
-        description: 'Simple, structured learning advice for the author based on the full manuscript and the proofread revisions (100% in English).',
+        description: 'Simple, structured learning advice for the author based on the manuscript and the proofread revisions (100% in English).',
         properties: {
           revisionsDigest: {
             type: 'STRING',
@@ -2201,58 +2300,79 @@ ${blocksContext}`;
     required: ['overallFeedback', 'learningSummary', 'existingSuggestionsNote', 'suggestions', 'elementSuggestions']
   };
 
-  return { systemPrompt, userMessage, responseSchema };
+  return { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema };
 }
 
 /**
- * Fetches binary image data for visual elements in parallel from Google Docs and uploads
- * them to the Gemini File API using the resumable upload protocol, returning their
- * temporary file URIs (`fileData.fileUri`) and resource names (`file.name`) for cleanup.
+ * Uploads the target manuscript Markdown file (`text/markdown`) and any binary image data
+ * for visual elements in parallel to the Gemini File API using the resumable upload protocol,
+ * returning their temporary file URIs (`fileData.fileUri`) and resource names (`file.name`) for cleanup.
  *
+ * @param {string} manuscriptMarkdown UTF-8 Markdown content representing the manuscript or selected excerpt.
+ * @param {string} manuscriptFileName Display file name for the manuscript Markdown file.
  * @param {Array<Object>} visualElements Visual elements extracted from the document.
  * @param {string} apiKey Gemini API key.
- * @return {Array<Object>} Uploaded file metadata objects ({ targetId, type, title, mimeType, fileName, fileUri }).
+ * @return {Array<Object>} Uploaded file metadata objects ({ kind, targetId, type, title, mimeType, fileName, fileUri }).
  */
-function uploadVisualElementsToGeminiFiles_(visualElements, apiKey) {
+function uploadManuscriptAndVisualsToGeminiFiles_(manuscriptMarkdown, manuscriptFileName, visualElements, apiKey) {
+  const itemsToUpload = [];
+
+  if (manuscriptMarkdown && typeof manuscriptMarkdown === 'string' && manuscriptMarkdown.trim().length > 0) {
+    const fname = manuscriptFileName || 'manuscript_context.md';
+    const textBlob = Utilities.newBlob(manuscriptMarkdown, 'text/markdown', fname);
+    const textBytes = textBlob.getBytes();
+    if (textBytes && textBytes.length > 0) {
+      itemsToUpload.push({
+        kind: 'MANUSCRIPT',
+        targetId: 'MANUSCRIPT_FILE',
+        type: 'Markdown',
+        title: fname,
+        mimeType: 'text/markdown',
+        bytes: textBytes
+      });
+    }
+  }
+
   const validTargets = (visualElements || [])
     .filter(v => v.contentUri && v.contentUri.startsWith('http'));
-  if (validTargets.length === 0) return [];
 
-  // 1. Fetch binary image blobs from Google Docs contentUri in parallel
-  const fetchRequests = validTargets.map(v => ({
-    url: v.contentUri,
-    method: 'get',
-    muteHttpExceptions: true
-  }));
+  // 1. Fetch binary image blobs from Google Docs contentUri in parallel (if any figures exist)
+  if (validTargets.length > 0) {
+    const fetchRequests = validTargets.map(v => ({
+      url: v.contentUri,
+      method: 'get',
+      muteHttpExceptions: true
+    }));
 
-  const fetchResponses = UrlFetchApp.fetchAll(fetchRequests);
-  const downloadedItems = [];
+    const fetchResponses = UrlFetchApp.fetchAll(fetchRequests);
 
-  fetchResponses.forEach((res, idx) => {
-    if (res.getResponseCode() === 200) {
-      const blob = res.getBlob();
-      const bytes = blob.getBytes();
-      if (bytes && bytes.length > 0) {
-        let mimeType = blob.getContentType() || 'image/png';
-        if (!mimeType.startsWith('image/')) {
-          mimeType = 'image/png';
+    fetchResponses.forEach((res, idx) => {
+      if (res.getResponseCode() === 200) {
+        const blob = res.getBlob();
+        const bytes = blob.getBytes();
+        if (bytes && bytes.length > 0) {
+          let mimeType = blob.getContentType() || 'image/png';
+          if (!mimeType.startsWith('image/')) {
+            mimeType = 'image/png';
+          }
+          itemsToUpload.push({
+            kind: 'VISUAL',
+            targetId: validTargets[idx].targetId,
+            type: validTargets[idx].type,
+            title: validTargets[idx].title,
+            mimeType: mimeType,
+            bytes: bytes
+          });
         }
-        downloadedItems.push({
-          targetId: validTargets[idx].targetId,
-          type: validTargets[idx].type,
-          title: validTargets[idx].title,
-          mimeType: mimeType,
-          bytes: bytes
-        });
       }
-    }
-  });
+    });
+  }
 
-  if (downloadedItems.length === 0) return [];
+  if (itemsToUpload.length === 0) return [];
 
-  // 2. Initiate Resumable Upload sessions on the Gemini File API in parallel
+  // 2. Initiate Resumable Upload sessions on the Gemini File API in parallel for both manuscript & figures
   const uploadInitEndpoint = 'https://generativelanguage.googleapis.com/upload/v1beta/files';
-  const startRequests = downloadedItems.map(item => ({
+  const startRequests = itemsToUpload.map(item => ({
     url: uploadInitEndpoint,
     method: 'post',
     contentType: 'application/json',
@@ -2265,7 +2385,7 @@ function uploadVisualElementsToGeminiFiles_(visualElements, apiKey) {
     },
     payload: JSON.stringify({
       file: {
-        display_name: `${item.targetId}_${item.title || 'figure'}`.slice(0, 100)
+        display_name: (item.kind === 'MANUSCRIPT' ? item.title : `${item.targetId}_${item.title || 'figure'}`).slice(0, 100)
       }
     }),
     muteHttpExceptions: true
@@ -2287,7 +2407,7 @@ function uploadVisualElementsToGeminiFiles_(visualElements, apiKey) {
       if (uploadUrl && uploadUrl.trim()) {
         sessionItems.push({
           uploadUrl: uploadUrl.trim(),
-          item: downloadedItems[idx]
+          item: itemsToUpload[idx]
         });
       }
     }
@@ -2295,7 +2415,7 @@ function uploadVisualElementsToGeminiFiles_(visualElements, apiKey) {
 
   if (sessionItems.length === 0) return [];
 
-  // 3. Upload binary bytes and finalize each file in parallel
+  // 3. Upload bytes and finalize each file in parallel
   const uploadByteRequests = sessionItems.map(session => ({
     url: session.uploadUrl,
     method: 'post',
@@ -2318,6 +2438,7 @@ function uploadVisualElementsToGeminiFiles_(visualElements, apiKey) {
         if (fileObj && fileObj.uri && fileObj.name) {
           const srcItem = sessionItems[idx].item;
           uploadedFiles.push({
+            kind: srcItem.kind,
             targetId: srcItem.targetId,
             type: srcItem.type,
             title: srcItem.title,
