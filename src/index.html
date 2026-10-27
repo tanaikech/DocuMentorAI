@@ -465,7 +465,7 @@
       <div class="brand-icon">✦</div>
       <div>
         <span class="brand-title">DocuMentor AI <span class="brand-info-dot">ⓘ</span></span>
-        <span id="brandSub" class="brand-sub">v1.0.2 • AI Proofreading Coach</span>
+        <span id="brandSub" class="brand-sub">v1.0.3 • AI Proofreading Coach</span>
       </div>
     </div>
     <div class="header-right">
@@ -646,22 +646,24 @@
 
   <!-- Footer -->
   <div class="app-footer">
-    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.2 • Created by Kanshi Tanaike
+    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.3 • Created by Kanshi Tanaike
   </div>
 
   <script>
     let currentLang = 'en';
+    let currentApiKeySource = 'none';
     let isDocEmptyState = false;
     let latestLearningSummaryPayload = null;
 
     const I18N = {
       en: {
-        brandSub: 'v1.0.2 • AI Proofreading Coach',
+        brandSub: 'v1.0.3 • AI Proofreading Coach',
         brandTooltip: 'Click to view Developer, GitHub Repository & Version info',
         settingsTitle: '⚙️ AI Engine & API Settings',
         apiKeyLabel: 'Gemini API Key',
         saveBtn: 'Save',
         apiKeyConfigured: '🔒 API Key Configured (Saved)',
+        apiKeyAdminManaged: '🔒 API Key Configured (School / Organization Admin)',
         resetBtn: 'Reset',
         modelLabel: 'Gemini Model',
         modelFlash: 'gemini-3.8-flash (Default / Fast)',
@@ -760,12 +762,13 @@
         }
       },
       ja: {
-        brandSub: 'v1.0.2 • AI推敲＆学習コーチ',
+        brandSub: 'v1.0.3 • AI推敲＆学習コーチ',
         brandTooltip: 'クリックして開発者・GitHubリポジトリ・バージョン情報を表示',
         settingsTitle: '⚙️ AI エンジン & API設定',
         apiKeyLabel: 'Gemini API キー',
         saveBtn: '保存',
         apiKeyConfigured: '🔒 APIキー入力済み (PropertiesService保存)',
+        apiKeyAdminManaged: '🔒 APIキー設定済み (学校・組織の管理者設定)',
         resetBtn: '再設定',
         modelLabel: '使用モデル',
         modelFlash: 'gemini-3.8-flash (デフォルト・高速推敲)',
@@ -872,12 +875,13 @@
       google.script.run
         .withSuccessHandler(cfg => {
           currentLang = cfg.lang || 'en';
+          currentApiKeySource = cfg.apiKeySource || (cfg.hasApiKey ? 'user' : 'none');
           document.getElementById('selectionOnlyToggle').checked = Boolean(cfg.selectionOnly);
           document.getElementById('hintOnlyToggle').checked = Boolean(cfg.hintOnly);
           document.getElementById('includeResolvedToggle').checked = Boolean(cfg.includeResolved);
           applyLanguageTexts();
           resetAllSteps();
-          updateApiKeyUi(cfg.hasApiKey);
+          updateApiKeyUi(cfg.hasApiKey, currentApiKeySource);
           document.getElementById('modelSelect').value = cfg.selectedModel || 'gemini-3.8-flash';
           checkInitialDocEmptyState();
         })
@@ -950,7 +954,9 @@
       document.getElementById('lblSettingsTitle').textContent = t.settingsTitle;
       document.getElementById('lblApiKey').textContent = t.apiKeyLabel;
       document.getElementById('btnSaveKey').textContent = t.saveBtn;
-      document.getElementById('lblApiKeyConfigured').textContent = t.apiKeyConfigured;
+      document.getElementById('lblApiKeyConfigured').textContent = currentApiKeySource === 'script'
+        ? t.apiKeyAdminManaged
+        : t.apiKeyConfigured;
       document.getElementById('btnResetKey').textContent = t.resetBtn;
       document.getElementById('lblModelSelect').textContent = t.modelLabel;
       document.getElementById('optModelFlash').textContent = t.modelFlash;
@@ -1043,9 +1049,20 @@
       google.script.run.saveIncludeResolvedPreference(includeResolved);
     }
 
-    function updateApiKeyUi(hasApiKey) {
+    function updateApiKeyUi(hasApiKey, apiKeySource) {
+      if (apiKeySource) {
+        currentApiKeySource = apiKeySource;
+      } else if (!hasApiKey) {
+        currentApiKeySource = 'none';
+      }
+      const t = I18N[currentLang];
+      const isScriptManaged = hasApiKey && currentApiKeySource === 'script';
       document.getElementById('apiKeyInputContainer').style.display = hasApiKey ? 'none' : 'block';
       document.getElementById('apiKeyConfiguredContainer').style.display = hasApiKey ? 'block' : 'none';
+      document.getElementById('lblApiKeyConfigured').textContent = isScriptManaged
+        ? t.apiKeyAdminManaged
+        : t.apiKeyConfigured;
+      document.getElementById('btnResetKey').style.display = isScriptManaged ? 'none' : 'inline-block';
       if (hasApiKey) {
         document.getElementById('apiKeyInput').value = '';
       }
@@ -1063,7 +1080,7 @@
       google.script.run
         .withSuccessHandler(res => {
           setBusy(false);
-          updateApiKeyUi(res.hasApiKey);
+          updateApiKeyUi(res.hasApiKey, res.apiKeySource || 'user');
         })
         .withFailureHandler(err => {
           setBusy(false);
@@ -1075,7 +1092,7 @@
     function handleResetApiKey() {
       clearAlerts();
       google.script.run
-        .withSuccessHandler(() => updateApiKeyUi(false))
+        .withSuccessHandler(res => updateApiKeyUi(res.hasApiKey, res.apiKeySource || 'none'))
         .withFailureHandler(showError)
         .deleteApiKey();
     }

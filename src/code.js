@@ -1,12 +1,12 @@
 /**
  * Application Name: DocuMentor AI
  * Description: AI-Powered Proofreading & Multimodal Suggestion Coach for Google Docs
- * Version: v1.0.2
+ * Version: v1.0.3
  * Author: Kanshi Tanaike
  */
 
 const APP_NAME = 'DocuMentor AI';
-const APP_VERSION = 'v1.0.2';
+const APP_VERSION = 'v1.0.3';
 const APP_AUTHOR = 'Kanshi Tanaike';
 const APP_REPO_URL = 'https://github.com/tanaikech/DocuMentorAI';
 
@@ -22,13 +22,37 @@ const ALLOWED_MODELS = ['gemini-3.8-flash', 'gemini-4-argon'];
 const DEFAULT_LANG = 'en';
 
 /**
- * Adds a custom menu to the Google Docs UI when the document is opened.
+ * Populates the menu immediately when the add-on is installed from the Google Workspace Marketplace.
+ *
+ * @param {Object=} e Install event object.
  */
-function onOpen() {
-  DocumentApp.getUi()
-    .createMenu('✦ DocuMentor AI')
-    .addItem('Open Dashboard', 'showSidebar')
-    .addToUi();
+function onInstall(e) {
+  onOpen(e);
+}
+
+/**
+ * Adds the DocuMentor AI menu when the document is opened.
+ * Supports both standalone / domain-internal Marketplace Editor Add-on deployments
+ * (via createAddonMenu under Extensions > DocuMentor AI) and personal container-bound
+ * scripts (via top-level createMenu('✦ DocuMentor AI')).
+ *
+ * @param {Object=} e Open event object.
+ */
+function onOpen(e) {
+  const ui = DocumentApp.getUi();
+  try {
+    ui.createAddonMenu()
+      .addItem('Open Dashboard', 'showSidebar')
+      .addToUi();
+  } catch (err) {}
+
+  if (!e || e.authMode !== ScriptApp.AuthMode.NONE) {
+    try {
+      ui.createMenu('✦ DocuMentor AI')
+        .addItem('Open Dashboard', 'showSidebar')
+        .addToUi();
+    } catch (err) {}
+  }
 }
 
 /**
@@ -42,14 +66,57 @@ function showSidebar() {
 }
 
 /**
- * Retrieves the initial configuration from UserProperties.
+ * Resolves the effective Gemini API key and its storage source.
+ * Priority:
+ * 1. ScriptProperties (`GEMINI_API_KEY`) — used when an IT administrator or teacher
+ *    pre-configures a shared organization/school key in Project Settings > Script Properties.
+ *    When present, the key is locked as 'script' (admin-managed) so end users/students
+ *    do not need to enter or manage an API key.
+ * 2. UserProperties (`GEMINI_API_KEY`) — used for individual setup via the sidebar UI.
+ *
+ * @return {Object} { apiKey: string, hasApiKey: boolean, apiKeySource: 'script'|'user'|'none' }
+ */
+function getEffectiveApiKeyInfo_() {
+  try {
+    const scriptProps = PropertiesService.getScriptProperties();
+    const scriptKey = scriptProps ? scriptProps.getProperty(PROP_KEY_API) : null;
+    if (scriptKey && scriptKey.trim().length > 0) {
+      return {
+        apiKey: scriptKey.trim(),
+        hasApiKey: true,
+        apiKeySource: 'script'
+      };
+    }
+  } catch (e) {}
+
+  try {
+    const userProps = PropertiesService.getUserProperties();
+    const userKey = userProps ? userProps.getProperty(PROP_KEY_API) : null;
+    if (userKey && userKey.trim().length > 0) {
+      return {
+        apiKey: userKey.trim(),
+        hasApiKey: true,
+        apiKeySource: 'user'
+      };
+    }
+  } catch (e) {}
+
+  return {
+    apiKey: '',
+    hasApiKey: false,
+    apiKeySource: 'none'
+  };
+}
+
+/**
+ * Retrieves the initial configuration from ScriptProperties and UserProperties.
  * The raw API key is never returned to the client.
  *
  * @return {Object} Configuration state.
  */
 function getInitialConfig() {
   const props = PropertiesService.getUserProperties();
-  const apiKey = props.getProperty(PROP_KEY_API);
+  const keyInfo = getEffectiveApiKeyInfo_();
   const savedModel = props.getProperty(PROP_KEY_MODEL) || DEFAULT_MODEL;
   const savedLang = props.getProperty(PROP_KEY_LANG) || DEFAULT_LANG;
   const savedSelectionOnly = props.getProperty(PROP_KEY_SELECTION_ONLY) === 'true';
@@ -62,7 +129,8 @@ function getInitialConfig() {
     appVersion: APP_VERSION,
     appAuthor: APP_AUTHOR,
     appRepoUrl: APP_REPO_URL,
-    hasApiKey: Boolean(apiKey && apiKey.trim().length > 0),
+    hasApiKey: keyInfo.hasApiKey,
+    apiKeySource: keyInfo.apiKeySource,
     selectedModel: ALLOWED_MODELS.includes(savedModel) ? savedModel : DEFAULT_MODEL,
     lang: (savedLang === 'ja' || savedLang === 'en') ? savedLang : DEFAULT_LANG,
     selectionOnly: savedSelectionOnly,
@@ -72,27 +140,37 @@ function getInitialConfig() {
 }
 
 /**
- * Saves the Gemini API key in UserProperties.
+ * Saves the Gemini API key in UserProperties (when not locked by an admin ScriptProperty).
  *
  * @param {string} apiKey The Gemini API key string.
  * @return {Object} Status object.
  */
 function saveApiKey(apiKey) {
+  const keyInfo = getEffectiveApiKeyInfo_();
+  if (keyInfo.apiKeySource === 'script') {
+    return { success: true, hasApiKey: true, apiKeySource: 'script' };
+  }
   if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
     throw new Error('Please enter a valid API key.');
   }
   PropertiesService.getUserProperties().setProperty(PROP_KEY_API, apiKey.trim());
-  return { success: true, hasApiKey: true };
+  return { success: true, hasApiKey: true, apiKeySource: 'user' };
 }
 
 /**
  * Deletes the stored Gemini API key from UserProperties.
+ * If an admin key is configured in ScriptProperties, that admin key remains active.
  *
  * @return {Object} Status object.
  */
 function deleteApiKey() {
   PropertiesService.getUserProperties().deleteProperty(PROP_KEY_API);
-  return { success: true, hasApiKey: false };
+  const keyInfo = getEffectiveApiKeyInfo_();
+  return {
+    success: true,
+    hasApiKey: keyInfo.hasApiKey,
+    apiKeySource: keyInfo.apiKeySource
+  };
 }
 
 /**
@@ -3163,17 +3241,18 @@ function formatElementComment_(elItem, isJa) {
 }
 
 /**
- * Retrieves the stored Gemini API key or throws a localized error if missing.
+ * Retrieves the stored Gemini API key (from ScriptProperties or UserProperties)
+ * or throws a localized error if missing.
  */
 function getRequiredApiKey_(isJa) {
-  const key = PropertiesService.getUserProperties().getProperty(PROP_KEY_API);
-  if (!key || !key.trim()) {
+  const keyInfo = getEffectiveApiKeyInfo_();
+  if (!keyInfo.hasApiKey || !keyInfo.apiKey) {
     throw new Error(isJa
-      ? 'Gemini APIキーが設定されていません。サイドバー上部の設定からAPIキーを保存してください。'
-      : 'Gemini API key is not configured. Please save your API key in the settings section above.'
+      ? 'Gemini APIキーが設定されていません。サイドバー上部の設定からAPIキーを保存してください（学校・組織利用の場合は管理者がスクリプトプロパティに GEMINI_API_KEY を設定してください）。'
+      : 'Gemini API key is not configured. Please save your API key in the settings section above (or ask your administrator to configure GEMINI_API_KEY in Script Properties).'
     );
   }
-  return key.trim();
+  return keyInfo.apiKey;
 }
 
 /**

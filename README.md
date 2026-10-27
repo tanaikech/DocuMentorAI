@@ -2,39 +2,60 @@
 
 ![DocuMentor AI Overview Infographic](images/documentor_ai_overview_infographic.png)
 
-**AI-Powered Proofreading & Multimodal Suggestion Coach for Google Docs**
+**AI-Powered Multimodal Proofreading, Code Review & Self-Learning Suggestion Coach for Google Docs — Built for Individuals, Classrooms, Academic Research Labs, Engineers & Organizations**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-V8-4285F4?logo=google&logoColor=white)](https://developers.google.com/apps-script)
 [![Google Docs API](https://img.shields.io/badge/Google%20Docs%20API-v1-34A853?logo=googledocs&logoColor=white)](https://developers.google.com/workspace/docs/api/how-tos/suggestions)
 [![Gemini API](https://img.shields.io/badge/Gemini%20API-Multimodal-8E75B2?logo=googlegemini&logoColor=white)](https://ai.google.dev/)
-[![Version](https://img.shields.io/badge/Version-v1.0.2-10b981.svg)](https://github.com/tanaikech/DocuMentorAI)
+[![Version](https://img.shields.io/badge/Version-v1.0.3-10b981.svg)](https://github.com/tanaikech/DocuMentorAI)
 
 ---
 
 ## Overview
 
-**DocuMentor AI** is a Google Docs add-on built with Google Apps Script, the Google Docs API (`v1`), and the Gemini API (`gemini-3.8-flash` / `gemini-4-argon`). Rather than overwriting a user's manuscript directly, DocuMentor AI leverages the newest [Google Docs API Suggestion & Comment Management capabilities](https://developers.google.com/workspace/docs/api/how-tos/suggestions) (`WriteControl.writeMode = "SUGGEST"`, `addCommentReply`, `insertComment`, `acceptSuggestion`, `rejectSuggestion`, and `deleteComment`) to act as an interactive, multimodal writing coach directly inside Google Docs.
+**DocuMentor AI (`v1.0.3`)** is an open-source Google Docs add-on built with Google Apps Script, the Google Docs API (`v1`), and the Gemini API (`gemini-3.8-flash` / `gemini-4-argon`). Rather than overwriting a user's manuscript directly, DocuMentor AI leverages the newest [Google Docs API Suggestion & Comment Management capabilities](https://developers.google.com/workspace/docs/api/how-tos/suggestions) (`WriteControl.writeMode = "SUGGEST"`, `addCommentReply`, `insertComment`, `acceptSuggestion`, `rejectSuggestion`, and `deleteComment`) to act as an interactive, multimodal writing coach directly inside Google Docs.
 
 It holistically analyzes **body text**, **structured tables**, **visual figures/charts** (via multimodal image inspection), and **active + resolved review history**, applies either non-destructive inline edit suggestions or **💡 Hint-Only coaching comments**, attaches educational explanations to every review thread, and presents a structured **Writing Coach & Learning Summary** modal dialog with one-click clipboard copy support.
+
+With **`v1.0.3`**, a **single unified codebase** seamlessly supports **two deployment modes** with automatic detection:
+1. **👤 Individual Mode (`UserProperties`):** Personal, zero-GCP-setup installation inside any Google Doc where you save your own Gemini API key in the sidebar.
+2. **🏫 School, University, Academic Lab & Organization Mode (`ScriptProperties` + Private Marketplace Add-on):** Zero-code IT Administrator setup where a single organization-managed Gemini API key is configured in Apps Script **Project Settings (⚙️) > Script Properties** and deployed as a **Private (Domain-Internal) Google Workspace Marketplace Add-on**—enabling students, researchers, and staff to use DocuMentor AI across any document without ever needing Google AI Studio or seeing the API key.
+
+---
+
+## 🚀 Choose Your Installation Guide
+
+Select the installation guide that matches your environment:
+
+| Deployment Mode | Target Audience | API Key Management | Detailed Step-by-Step Guide |
+| :--- | :--- | :--- | :--- |
+| **👤 Individual / Personal Mode** | Independent writers, researchers, engineers, students, and bloggers setting up DocuMentor AI for their own personal use. | **Sidebar UI (`UserProperties`)**<br/>Paste your own Gemini API key directly in the sidebar (saved privately to your account). | **[📖 Open Individual Installation Guide (`INSTALL_INDIVIDUAL.md`)](INSTALL_INDIVIDUAL.md)** |
+| **🏫 School, University & Organization Mode** | K–12 schools, universities, academic research labs, and companies deploying DocuMentor AI across a Google Workspace domain. | **Admin GUI (`ScriptProperties`)**<br/>IT Admin sets `GEMINI_API_KEY` once in Apps Script Project Settings (⚙️). Students/users never need AI Studio or an API key. | **[📖 Open School & Organization Deployment Guide (`INSTALL_ORGANIZATION.md`)](INSTALL_ORGANIZATION.md)** |
 
 ---
 
 ## Purpose, Motivation & Significance
 
-### Purpose of Development & Addressing the "AI-Induced Cognitive Offloading" Problem
-
+### 1. Addressing the "AI-Induced Cognitive Offloading" Problem
 **DocuMentor AI** was developed to break away from the conventional paradigm of generative AI proofreading—which focuses solely on "efficiency by directly replacing the final text"—and instead achieve **"preserving user agency and maximizing learning outcomes."**
 
-In recent years, "thought stopping" (cognitive offloading) and the decline of critical thinking abilities caused by over-reliance on AI have become pressing societal challenges. For example, a June 2025 brain study by the MIT Media Lab (*"Your Brain on ChatGPT"*) demonstrated the risk of **"cognitive debt,"** showing that continuously and passively accepting AI-generated outputs reduces brain activity and neural connectivity ([Ref](https://www.media.mit.edu/projects/your-brain-on-chatgpt/overview/)). Furthermore, entering 2026, research from institutions such as Carnegie Mellon University, the Wharton School (University of Pennsylvania), and MIT, along with related reports, have highlighted phenomena across education and business including the **"shortcut trap"**—where even 10 minutes of AI reliance reduces subsequent independent problem-solving and logical thinking performance by 20% ([Ref](https://japan.cnet.com/article/35247336/))—and **"cognitive surrender,"** where reading fluent AI responses creates a false illusion of understanding and leads students and professionals to stop thinking critically for themselves ([Ref](https://www.asahi.com/articles/ASVB146BHVB1UHBI03JM.html)).
+In recent years, "thought stopping" (cognitive offloading) and the decline of critical thinking abilities caused by over-reliance on AI have become pressing societal challenges:
+- **Cognitive Debt (MIT Media Lab, June 2025):** Demonstrated in *"Your Brain on ChatGPT"* that continuously and passively accepting AI-generated outputs reduces brain activity and neural connectivity ([Ref](https://www.media.mit.edu/projects/your-brain-on-chatgpt/overview/)).
+- **The "Shortcut Trap" & "Cognitive Surrender" (CMU, Wharton School, MIT, 2026):** Showed that even 10 minutes of passive AI reliance reduces subsequent independent problem-solving and logical thinking performance by 20% ([Ref](https://japan.cnet.com/article/35247336/)), and that reading fluent AI responses creates a false illusion of understanding that leads students and professionals to stop thinking critically for themselves ([Ref](https://www.asahi.com/articles/ASVB146BHVB1UHBI03JM.html)).
+- **User Anxiety Over Declining Thinking Skills (Nikkei XTECH Survey, October 2026):** Reported that the #1 concern among generative AI users (42.1%) is the **"decline in thinking ability due to AI dependency"** ([Ref](https://xtech.nikkei.com/atcl/nxt/mag/nc/18/020600010/100500235/)).
 
-**DocuMentor AI** fundamentally solves these challenges by leveraging Google Docs' native **Suggestion** and **Comment** features to **visualize the thought process and rationale (`Why`—which part was revised, how, and why)** rather than overwriting the author's text. Because the user must actively judge whether to **accept or reject** each proposed revision, critical thinking is naturally triggered instead of blindly accepting AI output. According to a survey reported by Nikkei XTECH in October 2026, the #1 concern among generative AI users (42.1%) is the **"decline in thinking ability due to AI dependency"** ([Ref](https://xtech.nikkei.com/atcl/nxt/mag/nc/18/020600010/100500235/)). By transforming AI from a mere "ghostwriter" into a **"side-by-side personal tutor,"** DocuMentor AI directly addresses this concern and empowers users to cultivate autonomous writing skills and a continuous growth mindset.
+**DocuMentor AI** fundamentally solves these challenges by leveraging Google Docs' native **Suggestion** and **Comment** features to **visualize the thought process and rationale (`Why`—which part was revised, how, and why)** rather than overwriting the author's text. Furthermore, with **💡 Hint-Only Mode**, the AI withholds the rewritten sentence on the document canvas and anchors only the diagnostic issue and coaching hint as a comment—prompting learners and researchers to actively revise their own prose before checking the reference rewrite.
 
-### Technical Inspiration & Background
+### 2. Empowering K–12 Education, Higher Education, Academic Research & Software Engineering Training
+Across schools, universities, academic laboratories, and engineering teams, **DocuMentor AI (`v1.0.3`)** addresses critical pedagogical, scholarly, and developer workflows:
+- **K–12 & University Classrooms (Safe, Zero-Key Student Access):** In **Google Workspace for Education**, access to Google AI Studio is often restricted for student Organizational Units (OUs). By allowing IT admins to configure a single school-managed API key in `ScriptProperties` and publish DocuMentor AI as a **Private (Domain-Only) Marketplace Add-on**, students can practice active-recall writing on any Google Classroom assignment with zero exposure to the underlying API key.
+- **Academic Manuscripts, Theses & Lab Reports (Cross-Modal Consistency):** Scientific papers, grant proposals, and dissertations depend on strict alignment between narrative claims, statistical tables (`TABLE_1`, etc.), and figures/charts (`VISUAL_1`, etc.). DocuMentor AI visually inspects embedded figures via the **Gemini File API**, checks whether baselines, units, and axis labels match the prose and tables, and anchors constructive peer-review comments directly onto figures and tables.
+- **Synthesizing Co-Author, Advisor & Peer Reviewer Feedback:** Academic writing is highly collaborative. Using **📜 Include Resolved Review History** and **🎓 Generate Learning Summary from Suggestions & Comments**, graduate students and researchers can distill dozens of inline edits and comments from advisors, co-authors, or internal lab reviewers—even after those threads have been accepted, rejected, or resolved—into a permanent, copyable study guide.
+- **Multi-Language Interactive Code Review & Script Learning (Overcoming "Vibe Coding"):** Beyond natural-language prose, DocuMentor AI can be used to review and learn programming scripts written in **any programming language** (such as Python, JavaScript, TypeScript, Go, Java, C++, Rust, SQL, Bash, or Google Apps Script) pasted into Google Docs. Because each line of code is extracted as an independent block (`editableBlocks`) and updated in reverse character-index order via `WriteMode.SUGGEST`, DocuMentor AI performs **GitHub-style line-by-line inline code reviews**—crossing out buggy or insecure lines, proposing runnable idiomatic replacements, attaching `addCommentReply` explanations of *what* was wrong, *why* it fails, and *how* to fix it, and even verifying whether implementation code matches an embedded architecture diagram (`Figure 1`) or API specification table (`Table 1`).
 
-Recently, programmatic comment and suggestion management via APIs became available across Google Docs, Sheets, and Slides, making it possible to build interactive, in-document coaching workflows.
-
-When I read the following three recent articles by **Romin Irani** demonstrating the new Google Docs API comment and suggestion capabilities, I was inspired by the idea that these features could be harnessed not only for automated document review, but also as a **self-directed learning tool** to help writers recognize their own habits and continuously improve their writing skills:
+### 3. Technical Inspiration & Background
+Recently, programmatic comment and suggestion management via APIs became available across Google Docs, Sheets, and Slides. When I read the following three insightful articles by **Romin Irani** demonstrating the new Google Docs API comment and suggestion capabilities, I was inspired by the idea that these features could be harnessed not only for automated document review, but also as a **self-directed learning environment**:
 
 1. [Building an AI Document Reviewer with Google ADK, Gemini, and the New Google Docs Comments](https://medium.com/google-cloud/building-an-ai-document-reviewer-with-google-adk-gemini-and-the-new-google-docs-comments-1f79fb6cb86f)
 2. [Grounding Google Docs Suggested Edits with Developer Knowledge MCP and Google Search](https://medium.com/google-cloud/grounding-google-docs-suggested-edits-with-developer-knowledge-mcp-and-google-search-9e2a3bf2800e)
@@ -42,78 +63,79 @@ When I read the following three recent articles by **Romin Irani** demonstrating
 
 At the same time, because I wanted to verify the real-world capabilities of **Gemini 4 Argon**, the **DocuMentor AI application itself was built using Gemini 4 Argon**, while also integrating `gemini-4-argon` directly into the add-on as the high-precision model for multimodal proofreading and coaching.
 
-### Core Pillars
-
-1. **Non-Destructive, Transparent AI Editing (`WriteMode.SUGGEST`) & Hint-Only Coaching Mode (`insertComment`)**
-   Traditional AI writing assistants replace text directly or require copying and pasting between external chat windows and the document. By programmatically generating native Google Docs **Suggested Edits** alongside anchored comment replies (`addCommentReply`), authors retain 100% editorial control over every proposed change. Moreover, turning on **💡 Hint-Only Mode (Comment Without Rewrite)** lets DocuMentor AI flag awkward sentences and anchor only the diagnostic issue and coaching hint as a Google Docs comment (`insertComment`) without proposing an inline rewrite—encouraging authors to practice revising the sentence themselves first before optionally revealing the AI's reference rewrite in the sidebar.
-2. **True Multimodal Manuscript Understanding via the Gemini File API**
-   Real-world technical reports, academic papers, and business proposals rely on the interplay between prose, tabular data, and visual charts. DocuMentor AI packages the target manuscript text and structured tables into a Markdown file alongside any embedded figures/charts (as binary image data), temporarily uploads them in parallel via the **Gemini File API**, passes their file URIs (`fileData.fileUri`) to Gemini for cross-modal consistency checks and visual improvement suggestions, and automatically deletes all temporary files from the Gemini File API immediately after content generation to maintain a clean environment and compact prompt payload even for long manuscripts.
-3. **Flexible Scope Control (Entire Active Tab vs. Selection Only)**
-   Authors can choose between proofreading the **entire active tab** (default) or toggling **Proofread Selection Only** to extract and upload strictly the highlighted phrase, paragraph, table cell, table, or figure—minimizing payload size and latency when focusing on a specific section.
-4. **Pedagogical Writing Coach for Continuous Self-Learning (From Active & Resolved Review History)**
-   Instead of functioning as a black-box proofreader, DocuMentor AI explains *why* each edit was made (`Reason`) and provides a reusable takeaway (`Learning Point`). Upon completion of AI proofreading, it automatically opens a dedicated **Writing Coach & Learning Summary** custom dialog summarizing:
-   - **Overall Manuscript Evaluation (`overallFeedback`)**
-   - **What Was Revised / Pointed Out (`revisionsDigest`)**
-   - **Areas for Improvement & Writing Habits (`weakPointsAndHabits`)**
-   - **Actionable Advice for Future Writing (`actionableTips`)**
-   Furthermore, via the dedicated **🎓 Generate Learning Summary from Suggestions & Comments** button and the **📜 Include Resolved Review History** toggle, DocuMentor AI extracts not only **active suggestions and open comments**, but also **resolved comments (`RESOLVED`) and already accepted/rejected suggestions (`ACCEPTED` / `REJECTED`)** from the Google Docs API (`commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED`)—allowing you to synthesize cumulative learning summaries across your entire review lifecycle (both AI and human peer reviews), even after suggestions and comments have been accepted, rejected, or resolved on the canvas.
+- **Published Article (Part 1):** [Building a Multimodal, Suggestion-Based AI Writing Coach with Gemini and Google Docs](https://medium.com/google-cloud/building-a-multimodal-suggestion-based-ai-writing-coach-with-gemini-and-google-docs-ea07244fed99)
 
 ---
 
-## Expected Impact & Use Cases
+## Core Pillars & Key Features
 
-### Expected Benefits
-- **Accelerated Review Cycles:** One-click **Accept All Suggestions** (`acceptSuggestion`), **Clear All Suggestions** (`rejectSuggestion`), and **Clear All Comments** (`deleteComment`) streamline bulk suggestion and comment management directly from the sidebar.
-- **Iterative & Collaborative Proofreading:** Because DocuMentor AI inspects existing unresolved suggestions (`SUGGESTIONS_INLINE`) and—when enabled—resolved review history (`RESOLVED` / `ACCEPTED` / `REJECTED`), it respects pending edits and avoids re-suggesting phrasing that the author already intentionally rejected.
-- **Active Recall via Hint-Only Mode:** By withholding the corrected rewrite on the document canvas and providing only the diagnostic reason and coaching hint in a comment, authors avoid passive "click-through" acceptance and actively strengthen their own revision skills.
-- **Long-Term Skill Development:** Writers internalize recurring grammatical, structural, or data-presentation habits through the post-run Learning Summary dialog, which can be copied to the clipboard with a single click for personal study notes or team feedback logs.
-- **Full Bilingual Operation (`EN` / `JA`):** When English mode is selected, all UI controls, categories, reasons, and learning summaries are generated 100% in English; when Japanese mode is selected, everything is generated 100% in Japanese.
+### Five Core Pillars
+1. **Unified Dual-Mode Deployment (`UserProperties` for Individuals / `ScriptProperties` for Schools & Organizations)**
+   A single script automatically detects whether an administrator has registered `GEMINI_API_KEY` in `ScriptProperties`. If present, it locks the sidebar into **Admin-Managed Mode** (`🔒 API Key Configured (School / Organization Admin)`) and hides the Reset button; if not, it operates in standard **Individual Mode** (`UserProperties`) where users save their own key via the sidebar UI. Both personal container-bound menus (`createMenu`) and domain-wide Marketplace Add-on menus (`createAddonMenu` / `onInstall`) are natively supported.
+2. **Non-Destructive, Transparent AI Editing (`WriteMode.SUGGEST`) & Hint-Only Coaching Mode (`insertComment`)**
+   Authors retain 100% editorial control over every proposed inline edit (`WriteMode.SUGGEST` + `addCommentReply`). Toggling on **💡 Hint-Only Mode (Comment Without Rewrite)** anchors only the diagnostic issue and coaching hint as a Google Docs comment (`insertComment`) without proposing an inline rewrite—encouraging writers to revise the sentence themselves first before expanding `👁️ Show Reference Rewrite` in the sidebar.
+3. **True Multimodal Manuscript Understanding via the Gemini File API**
+   DocuMentor AI packages the target manuscript text and structured tables into a Markdown file alongside any embedded figures/charts (as binary image data), temporarily uploads them in parallel via the **Gemini File API** (`UrlFetchApp.fetchAll`), passes their file URIs (`fileData.fileUri`) to Gemini for cross-modal consistency checks, and automatically deletes all temporary files in the `finally` block immediately after generation.
+4. **Flexible Scope Control (Entire Active Tab vs. Selection Only)**
+   Authors can proofread the **entire active tab** (default) or toggle **🎯 Proofread Selection Only** to extract and upload strictly the highlighted phrase, paragraph, table cell, table, or figure (`doc.getSelection()`).
+5. **Pedagogical Writing Coach for Continuous Self-Learning (From Active & Resolved Review History)**
+   Upon completion of proofreading—or on demand via **🎓 Generate Learning Summary from Suggestions & Comments**—DocuMentor AI synthesizes active suggestions, open comments, and (when **📜 Include Resolved Review History** is ON) resolved comments (`RESOLVED`) and accepted/rejected suggestions (`ACCEPTED` / `REJECTED`) into a structured **Writing Coach & Learning Summary** modal dialog:
+   - **📋 Overall Manuscript Evaluation (`overallFeedback`)**
+   - **🛠️ What Was Revised / Pointed Out (`revisionsDigest`)**
+   - **🔍 Areas for Improvement & Writing Habits (`weakPointsAndHabits`)**
+   - **🌱 Actionable Advice for Future Writing (`actionableTips`)**
 
-### Target Scenarios
-- **Business Reports & Proposals:** Checking tone, conciseness, and numerical alignment between executive summaries, financial tables, and embedded Google Sheets charts.
-- **Academic & Technical Manuscripts:** Refining logical flow, figure captions, and table clarity in multi-tab documents.
-- **Language Learning & Corporate Training:** Using **💡 Hint-Only Mode** to challenge learners to revise flagged sentences themselves based on AI coaching hints before comparing against the reference rewrite.
-- **Post-Review Retrospective Learning:** Using **📜 Include Resolved Review History** + **🎓 Generate Learning Summary from Suggestions & Comments** after completing a team review cycle to distill a permanent study guide from all accepted, rejected, and resolved feedback.
-- **Overcoming Writer's Block:** Generating a clean initial draft directly into an empty tab from a custom prompt before running iterative proofreading passes.
-
----
-
-## Key Features
-
-- **4-Stage Real-Time Process Dashboard:** Visualizes each step of the pipeline (`Step 1: Fetch` ➔ `Step 2: Gemini Analysis` ➔ `Step 3: Build Payload` ➔ `Step 4: Apply Suggestions & Comments`) with live metrics and expandable details.
+### Feature Highlights
+- **📊 4-Stage Real-Time Process Dashboard:** Visualizes `Step 1: Fetch` ➔ `Step 2: Gemini Analysis` ➔ `Step 3: Build Payload` ➔ `Step 4: Apply Suggestions & Comments` with live metrics and expandable details.
 - **3 Interactive Control Toggle Switches:**
-  1. **🎯 Proofread Selection Only:**
-     - **OFF (Default):** Proofreads the entire currently active tab (text, tables, and figures/charts).
-     - **ON:** Extracts and uploads only the user's current selection (`doc.getSelection()`) for fast, targeted proofreading.
-  2. **💡 Hint-Only Mode (Comment Without Rewrite):**
-     - **OFF (Default):** Proposes inline text replacements (`WriteMode.SUGGEST`) + coaching replies (`addCommentReply`).
-     - **ON:** Anchors only the issue explanation and coaching hint as a Google Docs comment (`insertComment`) on the flagged phrase without modifying the text, while placing the reference rewrite inside a collapsible `👁️ Show Reference Rewrite (After Trying Yourself)` accordion in the Step 2 sidebar card.
-  3. **📜 Include Resolved Review History:**
-     - **OFF (Default):** Analyzes only currently active inline suggestions and open comments.
-     - **ON:** Extracts resolved comment threads (`status === "RESOLVED"`) and settled suggestion threads (`ACCEPTED` / `REJECTED` / `RESOLVED_SUGGESTION`) via the Google Docs API (`commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED`) and incorporates them into both AI proofreading context and Learning Summary generation.
-- **Collapsible Resolved Review History Ledger (Step 1):** Whenever resolved comments or accepted/rejected suggestions exist in the document, Step 1 displays a collapsible `📜 View Resolved Review History` ledger showing each thread's status badge (`RESOLVED`, `ACCEPTED`, `REJECTED`), author, anchor snippet, and feedback text.
-- **Multimodal Table & Figure Coaching (Created as Comments):** Because inline edit suggestions (`WriteMode.SUGGEST`) cannot be applied directly to figures, DocuMentor AI creates figure/chart and overall table review feedback as anchored Google Docs comments (`insertComment`) on tables (`TABLE_1`, etc.) and figures/charts (`VISUAL_1`, etc.) with targeted structural and visual advice.
-- **Learning Summary Generation from Active & Resolved Reviews:** In addition to auto-generating the learning summary during **🚀 Run Proofreading**, the **🎓 Generate Learning Summary from Suggestions & Comments** button retrieves and analyzes active inline suggestions, open comment threads, and (when **📜 Include Resolved Review History** is ON) resolved comments and accepted/rejected suggestions to produce a structured **Writing Coach & Learning Summary** at any time.
-- **Custom Modal Dialogs:**
-  - **🎓 Writing Coach & Learning Summary Dialog:** Automatically opens upon completion of proofreading—and can also be generated on demand from active and resolved review history—displaying a structured learning digest and a **Copy to Clipboard** button.
-  - **✦ About DocuMentor AI Dialog:** Opens when clicking `DocuMentor AI` in the sidebar header or footer, displaying the developer name (`Kanshi Tanaike`), version (`v1.0.2`), and GitHub repository link.
+  - **🎯 Proofread Selection Only** (`OFF`: Entire Active Tab / `ON`: Selected Content Only)
+  - **💡 Hint-Only Mode (Comment Without Rewrite)** (`OFF`: Suggest Mode + Replies / `ON`: Coaching Hint Comments + Collapsible Reference Rewrite)
+  - **📜 Include Resolved Review History** (`OFF`: Active Reviews Only / `ON`: Active + Resolved/Accepted/Rejected Reviews)
+- **📜 Collapsible Resolved Review History Ledger (Step 1):** Displays each historical thread's status badge (`RESOLVED`, `ACCEPTED`, `REJECTED`), reviewer name, anchor snippet, and comment/reply text.
+- **🖼️ Multimodal Table & Figure Coaching (`insertComment`):** Attaches anchored Google Docs comments directly onto tables (`TABLE_1`, etc.) and figures/charts (`VISUAL_1`, etc.) with automatic 3-tier anchor range fallback.
+- **⚡ One-Click Bulk Management:** **✅ Accept All Suggestions** (`acceptSuggestion`), **🧹 Clear All Suggestions** (`rejectSuggestion`), and **🗑️ Clear All Comments** (`deleteComment`).
+- **🌐 Full Bilingual Operation (`EN` / `JA`):** Switches both the UI and 100% of Gemini's generated categories, reasons, and learning summaries between English and Japanese.
+
+### Model Selection Guide: `Gemini 3.8 Flash` vs. `Gemini 4 Argon`
+
+In the sidebar's **⚙️ AI Engine & API Settings** panel, you can switch between **`gemini-3.8-flash (Fast & Balanced)`** and **`gemini-4-argon (High Precision)`** at any time. Use the following decision matrix to select the optimal model for your proofreading or code review task:
+
+| Scenario / Use Case | Domain | Recommended Model | Why & Key Selection Criteria |
+| :--- | :--- | :--- | :--- |
+| **1. Typo, Spelling & Grammar Check** | ✍️ Prose | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | Fixing typos, spelling mistakes, and clear grammatical errors relies primarily on pattern recognition—making Flash's high speed and low token cost the optimal choice. |
+| **2. Routine Code Refactoring** | 💻 Code | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | Standardizing naming conventions, adding comments/docstrings, and rewriting simple functions without complex algorithmic changes complete almost instantaneously with Flash. |
+| **3. Rapid Iterative Drafting & Interactive Checks** | ✍️ Prose / 💻 Code | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | When actively drafting or iterating in the editor and wanting fast, rhythmic feedback or brainstorming without breaking your creative flow, Flash's ultra-low latency provides a stress-free experience. |
+| **4. First-Pass Triage of Large Documents or Long Scripts** | ✍️ Prose / 💻 Code | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | Ideal for cost-effectively screening long manuscripts or large scripts to surface broad errors and recurring issues in a single initial pass. |
+| **5. Logical Consistency in Academic Papers, Contracts & Multimodal Figures** | ✍️ Prose & 🖼️ Visuals | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Best when deep contextual reasoning is required to detect contradictions across claims, flawed logical progressions, subtle loopholes in legal/contractual phrasing, or cross-modal mismatches between body text, tables, and figures. |
+| **6. Complex Algorithm & Data Structure Review** | 💻 Code | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Shines in code reviews that require deep analytical thinking—such as optimizing time and space complexity, designing advanced data structures, and verifying subtle edge-case bugs. |
+| **7. Security Auditing & Vulnerability Detection** | 💻 Code | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Ideal for deeply tracing execution paths to uncover concurrency bugs (race conditions), injection vulnerabilities, credential exposure, or subtle security flaws hidden in source code. |
+| **8. Nuanced Tone, Style & Psychological Audience Adaptation** | ✍️ Prose | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Powerful for executing abstract, high-level editorial instructions beyond surface proofreading—such as rewriting text to achieve a specific psychological effect or persuasive tone tailored to a target audience. |
+
+> **💡 Practical Two-Pass Workflow Tip:** For long academic papers or complex scripts, start with **`gemini-3.8-flash`** for a fast, low-cost **First-Pass Triage** (cleaning up typos, basic grammar, and naming conventions), and then switch to **`gemini-4-argon`** for your **Deep Second Pass** (verifying thesis/contract logic, cross-checking `Table 1` and `Figure 1`, or auditing algorithm complexity and security vulnerabilities).
 
 ---
 
 ## Architecture & Workflow
 
-The following Mermaid diagram illustrates the end-to-end execution workflow of **DocuMentor AI**:
+The following Mermaid diagram illustrates the end-to-end architecture and execution workflow of **DocuMentor AI (`v1.0.3`)**:
 
 ```mermaid
 flowchart TD
-    User(["👤 User in Google Docs"]) --> Toggle{"Scope & Mode Toggles"}
+    subgraph DeployMode ["🔐 Dual Deployment & API Key Resolution (v1.0.3)"]
+        direction LR
+        AdminMode["🏫 <b>School / Org / Lab Mode</b><br/>Private Marketplace Add-on<br/>Key in <code>ScriptProperties</code> (Locked)"]
+        IndivMode["👤 <b>Individual Mode</b><br/>Container-Bound Script<br/>Key in <code>UserProperties</code> (Sidebar UI)"]
+    end
+
+    DeployMode --> User(["👤 Author / Student / Researcher in Google Docs"])
+    User --> Toggle{"Scope & Mode Toggles"}
     Toggle -- "Scope: OFF (Default)" --> ScopeTab["📑 Target: Entire Active Tab<br/>(doc.getActiveTab)"]
     Toggle -- "Scope: ON" --> ScopeSel["🎯 Target: Selected Content Only<br/>(doc.getSelection)"]
 
     ScopeTab --> Step1
     ScopeSel --> Step1
 
-    subgraph Pipeline ["🚀 4-Stage Proofreading & Coaching Pipeline (v1.0.2)"]
+    subgraph Pipeline ["🚀 4-Stage Proofreading & Coaching Pipeline (v1.0.3)"]
         direction TB
         Step1["<b>STEP 1: Fetch Document & Parse Structure</b><br/>• Call <code>documents.get</code> with <code>includeTabsContent=true</code>,<br/>  <code>suggestionsViewMode=SUGGESTIONS_INLINE</code>,<br/>  <code>commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED</code><br/>• Extract Settled Text Blocks, Tables (Markdown), Figures/Charts,<br/>  Active Suggestions/Comments, and Resolved Review History"]
 
@@ -133,56 +155,22 @@ flowchart TD
 
 ---
 
-## Installation & Usage Guide
+## Installation & Quick-Start Summary
 
-Follow these steps to install and run **DocuMentor AI** in your Google Document:
+Both installation modes use the **exact same three source files** in [`src/`](src/) ([`src/appsscript.json`](src/appsscript.json), [`src/code.js`](src/code.js), and [`src/index.html`](src/index.html)):
 
-### 1. Create or Open a Google Document
-1. Open [Google Docs](https://docs.google.com/) and create a new document or open an existing manuscript you wish to proofread.
-2. In the top menu bar, click **Extensions** > **Apps Script** to open the Google Apps Script editor.
+### Option A: 👤 For Individual Users (Personal Setup)
+1. Open a Google Doc and click **Extensions** > **Apps Script**.
+2. Copy [`src/appsscript.json`](src/appsscript.json), [`src/code.js`](src/code.js) (into `Code.gs`), and [`src/index.html`](src/index.html) into the editor and save.
+3. Reload the Google Doc, click **`✦ DocuMentor AI`** > **`Open Dashboard`**, and paste your Gemini API key into the sidebar (**Save** stores it in `UserProperties`).
+- 👉 **[Read the Full Step-by-Step Individual Installation Guide (`INSTALL_INDIVIDUAL.md`)](INSTALL_INDIVIDUAL.md)**
 
-### 2. Copy and Paste the Script Files
-In the Apps Script editor, set up the following three files from the [`src/`](src/) directory of this repository:
-
-1. **Enable `appsscript.json` (Manifest File):**
-   - In the Apps Script editor, click **Project Settings** (the gear icon ⚙️ on the left sidebar) and check the box **"Show 'appsscript.json' manifest file in editor"**.
-   - Return to the **Editor** (`< >` icon), select `appsscript.json`, and replace its contents with [`src/appsscript.json`](src/appsscript.json).
-2. **Copy `code.js` into `Code.gs`:**
-   - Select the default `Code.gs` file in the editor and replace its entire contents with [`src/code.js`](src/code.js).
-3. **Create `index.html`:**
-   - Click the **`+`** button next to **Files** in the left panel and select **HTML**.
-   - Name the file **`index`** (it will appear as `index.html`—do not type `.html` in the name prompt).
-   - Paste the entire contents of [`src/index.html`](src/index.html) into this file.
-4. **Save the Project:**
-   - Press `Ctrl + S` (or `Cmd + S` on macOS) or click the **Save project** (floppy disk 💾) icon.
-
-### 3. Reload Google Docs & Launch from Custom Menu
-1. Close the Apps Script tab and **reload (refresh) your Google Docs browser tab**.
-2. After a few seconds, a new custom menu **`✦ DocuMentor AI`** will appear in the Google Docs menu bar.
-3. Click **`✦ DocuMentor AI`** > **`Open Dashboard`**.
-4. *(First-time run only)* Google will prompt you to authorize the script permissions (`documents`, `script.container.ui`, `script.external_request`). Complete the authorization flow and click **`✦ DocuMentor AI`** > **`Open Dashboard`** again.
-
-### 4. Configure & Run Proofreading (How to Use the Sidebar)
-1. **First, Register Your Gemini API Key:**
-   - When you launch the application and the sidebar opens, **first register your API key for using Gemini**. Enter your **Gemini API Key** (obtainable from [Google AI Studio](https://aistudio.google.com/)) in the **API & Model Settings** card and click **Save** (it is stored securely in `PropertiesService.getUserProperties()`).
-   - You can also choose your preferred model (`gemini-3.8-flash` for fast daily proofreading or `gemini-4-argon` for high-precision analysis) and toggle the display/output language between **`EN`** (English) and **`JA`** (Japanese) at the top-right of the sidebar.
-2. **Configure Proofreading Scope & Coaching Mode Toggles:**
-   - **🎯 Proofread Selection Only:** Turning **ON** proofreads **only the selected part** (specific text, table cells, tables, or figures highlighted in the document). Leaving it **OFF** (default) proofreads the **entire active tab**.
-   - **💡 Hint-Only Mode (Comment Without Rewrite):** Turning **ON** flags target phrases and attaches only the diagnostic issue and coaching hint as a Google Docs comment (`insertComment`) without proposing an inline rewrite—allowing you to try rewriting the sentence yourself first, and then optionally expand `👁️ Show Reference Rewrite` in the Step 2 sidebar card to compare. Leaving it **OFF** (default) proposes standard inline text replacements (`WriteMode.SUGGEST`) + coaching replies.
-   - **📜 Include Resolved Review History:** Turning **ON** extracts resolved comments (`RESOLVED`) and already accepted/rejected suggestions (`ACCEPTED` / `REJECTED`) via the Google Docs API (`commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED`) so that both iterative proofreading and Learning Summary generation take your full historical review lifecycle into account.
-3. **Add Additional Instructions via Custom Prompt (Optional):**
-   - When proofreading, it is also possible to add additional instructions as a **Custom Prompt** by typing into the Custom Prompt box or clicking the preset prompt chips (e.g., `#Concise & Logical`, `#Business Tone`, `#Tables & Charts`, `#Grammar & Flow`).
-4. **Execute Proofreading (`"Run Proofreading"`) & Automatic Learning Summary:**
-   - Click **🚀 Run Proofreading (Suggest & Coach)** (or **💡 Run Proofreading (Hint-Only Comments)** when Hint-Only Mode is active, or **📝 Generate Initial Text from Prompt** if the tab is currently empty).
-   - When the 4-step pipeline finishes, the **🎓 Writing Coach & Learning Summary** custom dialog automatically pops up. Click **📋 Copy to Clipboard** to save your personalized writing advice.
-5. **Generate a Learning Summary from Active & Resolved Reviews (Learn from Other Users' Feedback too):**
-   - Click the **"🎓 Generate Learning Summary from Suggestions & Comments"** button to analyze **existing suggestions, open comments, and (when enabled) resolved review history** in the Google Document. This allows you to synthesize a **Writing Coach & Learning Summary** from edits and comments made by other users (colleagues, supervisors, or human editors) even after those suggestions or comments have already been accepted, rejected, or resolved.
-   - Note that while pressing **"🚀 Run Proofreading"** automatically generates the **Writing Coach & Learning Summary**, you can also press **"🎓 Generate Learning Summary from Suggestions & Comments"** separately at any time afterward to re-run and generate a fresh summary from your active and resolved review threads.
-6. **Accept or Delete All Suggestions & Comments with One Click:**
-   - Clicking the **"✅ Accept All Suggestions"** button accepts all pending inline suggestions in the active tab at once.
-   - Clicking the **"🧹 Clear All Suggestions"** button rejects and clears all pending inline suggestions in the active tab at once.
-   - Clicking the **"🗑️ Clear All Comments"** button deletes all active comments (including figure/table review comments and Hint-Only coaching comments created via `insertComment`) in the active tab at once.
-   - *(Tip)* Click **`DocuMentor AI ⓘ`** in the sidebar header or footer at any time to open the **About DocuMentor AI** custom dialog showing developer, version, and repository details.
+### Option B: 🏫 For Schools, Universities, Research Labs & Organizations (Domain-Internal Setup)
+1. An IT Administrator creates a standalone project at [script.google.com](https://script.google.com/) and pastes [`src/appsscript.json`](src/appsscript.json), [`src/code.js`](src/code.js), and [`src/index.html`](src/index.html) **without modifying any code**.
+2. In **Project Settings (⚙️) > Script Properties**, the admin adds `GEMINI_API_KEY` with the organization's Gemini API key.
+3. The admin links a standard GCP project, enables `Google Docs API` and `Google Workspace Marketplace SDK`, publishes the app with **Visibility: Private (Domain-Only)**, and installs it for student/staff Organizational Units via the Google Admin Console.
+4. Students and researchers launch it on any Google Doc via **Extensions > DocuMentor AI > Open Dashboard**—the sidebar automatically displays **`🔒 API Key Configured (School / Organization Admin)`** with zero API key exposure.
+- 👉 **[Read the Full Step-by-Step School & Organization Deployment Guide (`INSTALL_ORGANIZATION.md`)](INSTALL_ORGANIZATION.md)**
 
 ---
 
@@ -209,7 +197,7 @@ A ready-to-use multimodal test manuscript is provided in the [`sample/`](sample/
 When you run **DocuMentor AI** on the [`sample/`](sample/) manuscript ([`sample/sample_article.md`](sample/sample_article.md) + [`sample/sample_figure.png`](sample/sample_figure.png)), the **🎓 Writing Coach & Learning Summary** dialog automatically appears upon completion with a one-click **📋 Copy to Clipboard** button, providing the following structured pedagogical feedback:
 
 ```text
-[🎓 Writing Coach & Learning Summary (DocuMentor AI v1.0.2)]
+[🎓 Writing Coach & Learning Summary (DocuMentor AI v1.0.3)]
 
 ■ 📋 Overall Manuscript Evaluation
 This introductory guide to Google Apps Script (GAS) clearly communicates the core value proposition of the platform, including its ease of setup, integration with Google Workspace, and connection to the Gemini AI API. However, the body text currently contains several grammatical errors, redundant modifiers, and overly conversational phrases (e.g., "most biggest," "many various," "softwares"). Furthermore, while Figure 1 and Table 1 present compelling time-saving metrics (reducing manual work from 120 minutes to 30 and 5 minutes), the body text never explicitly references the table or figure, nor does Table 1 include the 120-minute manual baseline shown in the chart. Aligning your text, table, and visual data while tightening your prose will significantly elevate the professionalism of this document.
@@ -224,7 +212,67 @@ The draft exhibits a habit of stacking redundant intensifiers ("most biggest," "
 1. Avoid pairing superlatives or similar adjectives together (use "biggest" instead of "most biggest," and "various" instead of "many various"). 2. Remember that nouns like "software" and "work" (when meaning labor/tasks) are uncountable in English and do not take an "-s." 3. Always introduce and interpret your tables and figures in the body text, ensuring that baselines and labels match across all elements.
 ```
 
-Rather than only showing line-by-line edits, this summary promotes effective self-learning by helping authors recognize their recurring linguistic habits (e.g., stacking redundant intensifiers like `"most biggest"` and `"many various"`, uncountable noun mistakes like `"softwares"` and `"routine works"`, and direct-translation structures like `"There is a merit that..."`), teaching cross-modal document literacy (explicitly citing `Table 1` and `Figure 1` in the body text and synchronizing the `120-minute` manual baseline and labels across prose, tables, and charts), and providing a portable 3-point checklist for future writing.
+---
+
+## Testing Multi-Language Interactive Code Review & Script Learning (Google Apps Script Example)
+
+In addition to natural-language manuscripts, you can use **DocuMentor AI** as a language-agnostic, interactive **Code Reviewer & Programming Tutor** directly inside Google Docs for **any programming language** (Python, JavaScript, TypeScript, Go, Java, C++, Rust, SQL, Google Apps Script, etc.). Below is a concrete demonstration using a beginner Google Apps Script snippet.
+
+### 1. Paste a Beginner Script into Google Docs
+Copy and paste the following beginner Google Apps Script snippet into a Google Doc (it intentionally contains common beginner pitfalls such as a hardcoded API key, `.getValue()` on a multi-cell range `"A2:C50"`, unserialized `UrlFetchApp.fetch` JSON payloads, direct `JSON.parse(response)` without `.getContentText()`, unprotected deep property access, and legacy `var` / `Logger.log`):
+
+```javascript
+// Sample Beginner Google Apps Script: Summarize spreadsheet tasks with Gemini and send an email
+function sendDailyReport() {
+  // 1. Set the Gemini API key and get the target spreadsheet tab
+  var apiKey = "AIzaSyD-1234567890abcdef_HARDCODED_KEY";
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+  // 2. Read all task rows from the sheet (Rows 2 to 50, Columns A to C)
+  var data = sheet.getRange("A2:C50").getValue();
+
+  // 3. Stop execution if the retrieved task data is empty
+  if (data == "") {
+    Logger.log("No task data found.");
+    return;
+  }
+
+  // 4. Call the Gemini API using UrlFetchApp to summarize today's tasks
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=" + apiKey;
+  var payload = { contents: [{ parts: [{ text: "Summarize these tasks: " + JSON.stringify(data) }] }] };
+  var response = UrlFetchApp.fetch(url, { method: "post", payload: payload });
+  var result = JSON.parse(response);
+
+  // 5. Send the generated summary to the manager via email
+  MailApp.sendEmail("manager@example.com", "Daily Task Summary", result.candidates[0].content.parts[0].text);
+  Logger.log("Successfully sent the daily report!");
+}
+```
+
+### 2. Run Proofreading with a Code-Review Instruction
+Enter the following prompt into **Additional Proofreading Instructions** in the sidebar and click **🚀 Run Proofreading (Suggest & Coach)** (or turn ON **💡 Hint-Only Mode** to practice fixing the bugs yourself first):
+
+```text
+Review this Google Apps Script code for bugs, GAS API misuse, security risks, and modern V8 JavaScript best practices, proposing line-by-line code fixes.
+```
+
+DocuMentor AI will apply line-by-line inline code suggestions (`WriteMode.SUGGEST`) across the script (so clicking **✅ Accept All Suggestions** produces a 100% syntactically valid, runnable V8 script), attach educational code-review replies (`addCommentReply`) explaining each bug and best practice, and generate the following **🎓 Writing Coach & Learning Summary**:
+
+```text
+[🎓 Writing Coach & Learning Summary (DocuMentor AI v1.0.3)]
+
+■ 📋 Overall Manuscript Evaluation
+This Google Apps Script snippet provides a clear high-level workflow for reading spreadsheet tasks, summarizing them with the Gemini API, and sending an email report. However, it contains several critical runtime bugs, a major security vulnerability (hardcoded API key), incorrect Google Apps Script API methods (such as using `getValue()` for a multi-cell range and improperly configuring `UrlFetchApp.fetch` for JSON), and outdated ES5 `var` declarations. Applying the line-by-line fixes below will make the script secure, functional, and compliant with modern V8 JavaScript standards.
+
+■ 🛠️ What Was Revised
+Replaced the hardcoded API key with `PropertiesService`, fixed `getValue()` to `getValues()` for multi-row range reading, updated the empty-data check to inspect the 2D array properly, corrected the Gemini model name and `UrlFetchApp` JSON payload configuration, fixed `HTTPResponse` parsing with `getContentText()`, added optional chaining for safer response access, and modernized variable declarations from `var` to `const`.
+
+■ 🔍 Areas for Improvement & Writing Habits
+The script shows common beginner pitfalls in Google Apps Script: confusing single-cell and multi-cell `Range` methods (`getValue` vs. `getValues`), assuming `UrlFetchApp.fetch` automatically serializes JavaScript objects as JSON and returns a string directly, hardcoding sensitive credentials in source code, and using legacy `var` syntax instead of V8's `const`/`let`.
+
+■ 🌱 Actionable Advice for Future Writing
+1. Always store API keys in Script Properties (`PropertiesService.getScriptProperties()`). 2. When working with multi-cell ranges, use `getValues()` and remember it returns a 2D array (`[][]`) even for empty cells. 3. When calling REST APIs with `UrlFetchApp`, always set `contentType: 'application/json'`, stringify the payload (`JSON.stringify()`), and call `.getContentText()` on the response before parsing.
+```
 
 ---
 
@@ -232,21 +280,28 @@ Rather than only showing line-by-line edits, this summary promotes effective sel
 
 ```text
 DocuMentorAI/
-├── README.md                                       # Comprehensive documentation and usage guide
+├── README.md                                       # Main documentation, architecture, and mode selector
+├── INSTALL_INDIVIDUAL.md                           # Step-by-step installation guide for Individual users
+├── INSTALL_ORGANIZATION.md                         # Step-by-step deployment guide for Schools, Labs & Organizations
 ├── images/
-│   └── documentor_ai_overview_infographic.png      # Visual architecture & feature overview infographic
+│   └── documentor_ai_overview_infographic.png      # Visual architecture & dual-deployment overview infographic
 ├── sample/
 │   ├── sample_article.md                           # Sample manuscript (text + table + figure link) for testing
 │   └── sample_figure.png                           # Sample architecture diagram & bar chart for multimodal testing
 └── src/
     ├── appsscript.json                             # Apps Script manifest (Docs Advanced Service v1 & OAuth scopes)
-    ├── code.js                                     # Backend logic (Docs API v1 parsing, Gemini API, batchUpdate, dialogs)
+    ├── code.js                                     # Backend logic (Dual API key resolution, Docs API v1, Gemini File API)
     └── index.html                                  # Sidebar dashboard UI, bilingual I18N, and 4-step pipeline controller
 ```
 
 ---
 
 ## Version History
+
+- **v1.0.3**
+  - Added **Unified Dual-Mode API Key Resolution (`ScriptProperties` + `UserProperties`)**: Automatically checks `PropertiesService.getScriptProperties()` for `GEMINI_API_KEY` before falling back to `PropertiesService.getUserProperties()`. When an IT administrator or educator sets `GEMINI_API_KEY` in Apps Script **Project Settings (⚙️) > Script Properties**, the sidebar automatically locks into **Admin-Managed Mode** (`🔒 API Key Configured (School / Organization Admin)`) and hides the Reset button—enabling zero-code deployment across schools, universities, research labs, and organizations without exposing the API key or requiring students to access Google AI Studio.
+  - Added **Google Workspace Marketplace Editor Add-on Menu Support (`createAddonMenu` & `onInstall`)**: Updated `onOpen(e)` and added `onInstall(e)` so the exact same script populates both `Extensions > DocuMentor AI` (when deployed as a domain-internal Marketplace Add-on under `AuthMode.NONE`) and the top-level `✦ DocuMentor AI` custom menu (when used as a personal container-bound script).
+  - Added dedicated installation guides for individual users ([`INSTALL_INDIVIDUAL.md`](INSTALL_INDIVIDUAL.md)) and school/organization IT administrators ([`INSTALL_ORGANIZATION.md`](INSTALL_ORGANIZATION.md)), and updated the overview infographic.
 
 - **v1.0.2**
   - Added **💡 Hint-Only Mode (`PROOFREAD_HINT_ONLY`)**: Anchors diagnostic issues and coaching hints as Google Docs comments (`insertComment`) on target phrases without proposing inline rewrites (`WriteMode.SUGGEST`), empowering authors to practice revising sentences themselves first while keeping reference rewrites available inside a collapsible `👁️ Show Reference Rewrite` section in the sidebar.
