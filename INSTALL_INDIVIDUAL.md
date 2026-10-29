@@ -6,12 +6,12 @@
 
 ## Overview: Personal Container-Bound Setup (`UserProperties`)
 
-This guide walks **individual users** (independent writers, researchers, engineers, bloggers, and learners) through installing **DocuMentor AI (`v1.0.3`)** directly inside a Google Document using a container-bound Google Apps Script project.
+This guide walks **individual users** (independent writers, researchers, engineers, bloggers, and learners) through installing **DocuMentor AI (`v1.0.4`)** directly inside a Google Document using a container-bound Google Apps Script project.
 
 In this mode:
 - **Zero Cloud Console Setup Required:** You do not need to create or configure a standard Google Cloud Platform (GCP) project or publish an add-on.
-- **Simple Sidebar API Key Input:** You simply paste your personal **Gemini API Key** (from [Google AI Studio](https://aistudio.google.com/)) into the **DocuMentor AI** sidebar once, and it is stored privately in your account's `PropertiesService.getUserProperties()`.
-- **Full Feature Access:** You get immediate access to the 4-stage multimodal proofreading pipeline (`WriteMode.SUGGEST`, `addCommentReply`, `insertComment`), **🎯 Proofread Selection Only**, **💡 Hint-Only Mode**, **📜 Include Resolved Review History**, and the **🎓 Writing Coach & Learning Summary** modal dialog.
+- **Simple Sidebar API Key & Optional Google Drive RAG Input:** You simply paste your personal **Gemini API Key** (from [Google AI Studio](https://aistudio.google.com/)) and optionally a **Google Drive RAG Rulebook Folder ID/URL** into the **DocuMentor AI** sidebar's auto-collapsing **⚙️ Settings Drawer**, and they are stored privately in your account's `PropertiesService.getUserProperties()`.
+- **Full Feature Access:** You get immediate access to the 4-stage multimodal proofreading pipeline (`WriteMode.SUGGEST`, `addCommentReply`, `insertComment`), **Google Drive RAG Rulebook grounding**, **🎯 Selection Only** (with strict review-history scope boundary), **💡 Hint-Only Mode**, **📜 Resolved History**, and the **🎓 Writing Coach & Learning Summary** modal dialog.
 
 ---
 
@@ -48,6 +48,11 @@ In the Apps Script editor, configure the following three files from the [`src/`]
            "userSymbol": "Docs",
            "serviceId": "docs",
            "version": "v1"
+         },
+         {
+           "userSymbol": "Drive",
+           "serviceId": "drive",
+           "version": "v3"
          }
        ]
      },
@@ -55,6 +60,7 @@ In the Apps Script editor, configure the following three files from the [`src/`]
      "runtimeVersion": "V8",
      "oauthScopes": [
        "https://www.googleapis.com/auth/documents",
+       "https://www.googleapis.com/auth/drive.readonly",
        "https://www.googleapis.com/auth/script.container.ui",
        "https://www.googleapis.com/auth/script.external_request"
      ]
@@ -94,10 +100,11 @@ In the Apps Script editor, configure the following three files from the [`src/`]
 1. When the sidebar opens for the first time, locate the **⚙️ AI Engine & API Settings** card at the top.
 2. Paste your **Gemini API Key** into the password input box (`AIzaSy...`) and click **Save**.
 3. Your key is stored securely in `PropertiesService.getUserProperties()` (accessible only to your Google account). The box will change to **`🔒 API Key Configured (Saved)`** with a **Reset** link in case you ever want to replace your key.
-4. Select your preferred **Gemini Model**:
+4. *(Optional)* Under **`📚 Google Drive RAG Rulebook Folder or File (ID / URL)`**, paste **either a Google Drive Folder ID/URL or a Single Rulebook File ID/URL** (`.md`, `.txt`, script, or Google Doc) and click **Link** to ground proofreading and code reviews in your custom rules.
+5. Select your preferred **Gemini Model**:
    - **`gemini-3.8-flash (Default / Fast)`:** Ideal for fast daily proofreading and quick iterative checks.
    - **`gemini-4-argon (High Precision)`:** Ideal for deep structural, academic, and cross-modal analysis across text, tables, and charts.
-5. Toggle the UI and AI output language between **`EN`** (100% English) and **`JA`** (100% Japanese) at the top-right corner of the sidebar header.
+6. Toggle the UI and AI output language between **`EN`** (100% English) and **`JA`** (100% Japanese) at the top-right corner of the sidebar header.
 
 ### 2. Choose Your Proofreading Scope & Coaching Modes (`✍️ Proofreading Scope & Controls`)
 - **🎯 Proofread Selection Only:**

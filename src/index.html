@@ -6,7 +6,7 @@
   <style>
     :root {
       --bg-primary: #0b0f19;
-      --bg-card: rgba(22, 30, 49, 0.85);
+      --bg-card: rgba(22, 30, 49, 0.88);
       --bg-code: #060911;
       --border-color: rgba(99, 102, 241, 0.25);
       --accent-indigo: #6366f1;
@@ -14,6 +14,7 @@
       --accent-emerald: #10b981;
       --accent-amber: #f59e0b;
       --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
       --text-main: #f1f5f9;
       --text-muted: #94a3b8;
       --radius-md: 12px;
@@ -26,26 +27,28 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
       background-color: var(--bg-primary);
       background-image: 
-        radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.16) 0%, transparent 45%),
         radial-gradient(circle at 90% 90%, rgba(6, 182, 212, 0.12) 0%, transparent 45%);
       color: var(--text-main);
       font-size: 13px;
-      line-height: 1.5;
-      padding: 14px;
+      line-height: 1.48;
+      padding: 12px;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden;
     }
 
+    /* Header */
     .app-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 11px 13px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.1));
+      padding: 10px 12px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(6, 182, 212, 0.1));
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       backdrop-filter: blur(10px);
     }
 
@@ -64,14 +67,14 @@
       transform: translateY(-1px);
     }
     .brand-icon {
-      width: 28px; height: 28px; border-radius: 8px;
+      width: 27px; height: 27px; border-radius: 8px;
       background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
       display: flex; align-items: center; justify-content: center;
-      font-weight: bold; font-size: 15px;
+      font-weight: bold; font-size: 14px;
       box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
     }
     .brand-title {
-      font-size: 14px; font-weight: 700; letter-spacing: 0.3px;
+      font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px;
       background: linear-gradient(90deg, #fff, #cbd5e1);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       display: inline-flex; align-items: center; gap: 4px;
@@ -95,117 +98,353 @@
     }
     .lang-btn.active { background: var(--accent-indigo); color: #fff; }
 
+    /* Compact Status Bar & Auto-Collapsing Settings Drawer */
+    .status-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 7px 9px;
+      background: rgba(15, 23, 42, 0.86);
+      border: 1px solid rgba(99, 102, 241, 0.28);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .status-bar-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      width: 100%;
+    }
+    .status-model-select {
+      flex: 1;
+      min-width: 0;
+      width: 100% !important;
+      max-width: none !important;
+      padding: 5px 8px !important;
+      font-size: 11px !important;
+      font-weight: 600;
+      border-radius: 6px !important;
+      background: rgba(11, 15, 25, 0.92) !important;
+      color: #e2e8f0 !important;
+      border: 1px solid rgba(99, 102, 241, 0.38) !important;
+      cursor: pointer;
+    }
+    .status-badges {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 6px;
+      width: 100%;
+      min-width: 0;
+    }
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3.5px 7px;
+      border-radius: 999px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(30, 41, 59, 0.75);
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+    .status-chip:hover { border-color: var(--accent-cyan); color: #fff; }
+    .status-chip.ready {
+      background: rgba(16, 185, 129, 0.14);
+      border-color: rgba(16, 185, 129, 0.45);
+      color: #6ee7b7;
+    }
+    .status-chip.admin {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: rgba(6, 182, 212, 0.45);
+      color: #67e8f9;
+    }
+    .status-chip.rag-active {
+      background: rgba(168, 85, 247, 0.16);
+      border-color: rgba(168, 85, 247, 0.5);
+      color: #d8b4fe;
+    }
+    .status-chip.missing {
+      background: rgba(244, 63, 94, 0.16);
+      border-color: rgba(244, 63, 94, 0.48);
+      color: #fda4af;
+    }
+    .btn-gear {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #cbd5e1;
+      border-radius: 6px;
+      width: 26px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.18s ease;
+    }
+    .btn-gear:hover, .btn-gear.open {
+      background: rgba(99, 102, 241, 0.28);
+      border-color: var(--accent-cyan);
+      color: #fff;
+    }
+
+    .settings-drawer {
+      display: none;
+      background: var(--bg-card);
+      border: 1px solid rgba(6, 182, 212, 0.48);
+      border-radius: var(--radius-md);
+      padding: 11px;
+      margin-top: -4px;
+      margin-bottom: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .settings-drawer.open { display: block; }
+    .drawer-section {
+      padding-top: 9px;
+      margin-top: 9px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.2);
+    }
+
     .card {
       background: var(--bg-card); border: 1px solid var(--border-color);
-      border-radius: var(--radius-md); padding: 12px; margin-bottom: 12px;
+      border-radius: var(--radius-md); padding: 11px; margin-bottom: 10px;
+      width: 100%; max-width: 100%; overflow: hidden;
     }
     .card-header {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 8px; font-weight: 600; font-size: 12px; color: #e2e8f0;
+      margin-bottom: 8px; font-weight: 600; font-size: 11.5px; color: #e2e8f0;
     }
 
-    label.field-label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    label.field-label { display: block; font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px; }
 
     input[type="password"], input[type="text"], select, textarea {
-      width: 100%; background: rgba(11, 15, 25, 0.8);
+      width: 100%; background: rgba(11, 15, 25, 0.85);
       border: 1px solid rgba(148, 163, 184, 0.25); border-radius: var(--radius-sm);
-      color: var(--text-main); padding: 8px 10px; font-size: 12px; outline: none;
+      color: var(--text-main); padding: 7px 9px; font-size: 11.5px; outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
     input:focus, select:focus, textarea:focus {
       border-color: var(--accent-indigo); box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
     }
-    textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+    textarea { resize: vertical; min-height: 58px; font-family: inherit; }
 
     .api-configured-box {
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
       background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35);
-      border-radius: var(--radius-sm); padding: 7px 10px; font-size: 11px; color: #6ee7b7;
+      border-radius: var(--radius-sm); padding: 6px 9px; font-size: 10.5px; color: #6ee7b7;
+    }
+    .rag-configured-box {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: var(--radius-sm); padding: 6px 9px; font-size: 10.5px; color: #d8b4fe;
+    }
+    .rag-files-mini-list {
+      margin-top: 5px;
+      font-size: 10px;
+      color: #cbd5e1;
+      background: rgba(11, 15, 25, 0.65);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      border-radius: 6px;
+      padding: 5px 7px;
+      max-height: 78px;
+      overflow-y: auto;
     }
 
     .btn-link {
       background: none; border: none; color: var(--text-muted);
-      font-size: 11px; cursor: pointer; text-decoration: underline;
+      font-size: 10.5px; cursor: pointer; text-decoration: underline; flex-shrink: 0;
     }
     .btn-link:hover { color: #fff; }
 
-    /* Toggle Switches for Proofreading Scope, Hint-Only Mode & Resolved History */
+    /* 2-Tab Segmented Coaching Mode Switcher */
+    .mode-segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: rgba(11, 15, 25, 0.85);
+      border: 1px solid rgba(99, 102, 241, 0.28);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+      margin-bottom: 5px;
+    }
+    .mode-seg-btn {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .mode-seg-btn:hover:not(:disabled) { color: #fff; }
+    .mode-seg-btn.active-suggest {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(6, 182, 212, 0.28));
+      border-color: rgba(6, 182, 212, 0.6);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(6, 182, 212, 0.22);
+    }
+    .mode-seg-btn.active-hint {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.32), rgba(217, 119, 6, 0.22));
+      border-color: rgba(245, 158, 11, 0.65);
+      color: #fde68a;
+      box-shadow: 0 2px 10px rgba(245, 158, 11, 0.22);
+    }
+    .mode-caption {
+      font-size: 10px;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+      padding: 0 2px;
+      line-height: 1.35;
+    }
+    .mode-caption.hint-mode { color: #fcd34d; }
+
+    /* Compact Scope Rows (Full-Width to Prevent Sidebar Overflow) */
+    .scope-pills-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 6px;
+      width: 100%;
+    }
     .scope-toggle-box {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(99, 102, 241, 0.3);
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid rgba(99, 102, 241, 0.26);
       border-radius: var(--radius-sm);
-      padding: 8px 10px;
-      margin-bottom: 8px;
+      padding: 6px 9px;
       transition: border-color 0.2s, background 0.2s;
     }
     .scope-toggle-box.selection-mode {
-      border-color: rgba(6, 182, 212, 0.55);
-      background: rgba(8, 30, 48, 0.75);
-    }
-    .scope-toggle-box.hint-mode {
-      border-color: rgba(245, 158, 11, 0.55);
-      background: rgba(45, 28, 10, 0.72);
+      border-color: rgba(6, 182, 212, 0.6);
+      background: rgba(8, 30, 48, 0.78);
     }
     .scope-toggle-box.resolved-mode {
-      border-color: rgba(16, 185, 129, 0.5);
-      background: rgba(8, 35, 30, 0.72);
+      border-color: rgba(16, 185, 129, 0.55);
+      background: rgba(8, 35, 30, 0.78);
     }
     .scope-info {
       display: flex;
-      flex-direction: column;
-      gap: 2px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex: 1;
       min-width: 0;
+      overflow: hidden;
     }
     .scope-title {
-      font-size: 11.5px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
     .scope-desc {
-      font-size: 10px;
-      color: var(--accent-cyan);
-      line-height: 1.35;
+      font-size: 9.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: rgba(11, 15, 25, 0.75);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 999px;
+      padding: 1.5px 7px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
-    .scope-toggle-box.hint-mode .scope-desc {
-      color: #fcd34d;
+    .scope-toggle-box.selection-mode .scope-desc {
+      color: #67e8f9;
+      border-color: rgba(6, 182, 212, 0.45);
+      background: rgba(6, 182, 212, 0.14);
     }
     .scope-toggle-box.resolved-mode .scope-desc {
       color: #6ee7b7;
+      border-color: rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.14);
     }
+
+    .btn-sync-reset {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.92));
+      border: 1px solid rgba(6, 182, 212, 0.42);
+      color: #a5f3fc;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6.5px 9px;
+      margin-bottom: 8px;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+    }
+    .btn-sync-reset:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), rgba(99, 102, 241, 0.22));
+      border-color: var(--accent-cyan);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .live-scope-summary {
+      font-size: 9.8px;
+      color: #cbd5e1;
+      background: rgba(11, 15, 25, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 6px;
+      padding: 4px 8px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
     .switch {
       position: relative;
       display: inline-block;
-      width: 38px;
-      height: 21px;
+      width: 32px;
+      height: 18px;
       flex-shrink: 0;
     }
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
+    .switch input { opacity: 0; width: 0; height: 0; }
     .slider {
       position: absolute;
       cursor: pointer;
       top: 0; left: 0; right: 0; bottom: 0;
       background-color: rgba(148, 163, 184, 0.3);
-      transition: 0.25s;
+      transition: 0.22s;
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.4);
     }
     .slider:before {
       position: absolute;
       content: "";
-      height: 15px;
-      width: 15px;
+      height: 12px;
+      width: 12px;
       left: 2px;
       bottom: 2px;
       background-color: #f8fafc;
-      transition: 0.25s;
+      transition: 0.22s;
       border-radius: 50%;
     }
     .switch input:checked + .slider {
@@ -213,34 +452,77 @@
       border-color: var(--accent-cyan);
     }
     .switch input:checked + .slider:before {
-      transform: translateX(17px);
+      transform: translateX(14px);
     }
-    details.hint-reveal, details.history-ledger {
+
+    /* Collapsible Custom Prompt & Initial Draft Accordion */
+    details.prompt-accordion {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: var(--radius-sm);
+      padding: 6px 8px;
+      margin-bottom: 9px;
+      transition: border-color 0.2s;
+    }
+    details.prompt-accordion[open] {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: rgba(15, 23, 42, 0.85);
+    }
+    details.prompt-accordion summary {
+      cursor: pointer;
+      user-select: none;
+      font-size: 11px;
+      font-weight: 600;
+      color: #c7d2fe;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      list-style: none;
+    }
+    details.prompt-accordion summary::-webkit-details-marker { display: none; }
+    .prompt-accordion-body {
+      margin-top: 8px;
+      padding-top: 7px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.2);
+    }
+    .prompt-active-dot {
+      display: none;
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(6, 182, 212, 0.2);
+      color: #67e8f9;
+      font-weight: 700;
+    }
+    .prompt-active-dot.visible { display: inline-block; }
+
+    details.hint-reveal, details.history-ledger, details.rag-ledger, details.active-reviews-ledger {
       margin-top: 6px;
       background: rgba(15, 23, 42, 0.65);
       border: 1px solid rgba(148, 163, 184, 0.22);
       border-radius: 6px;
       padding: 5px 8px;
       font-size: 10.5px;
+      margin-bottom: 6px;
     }
-    details.hint-reveal summary, details.history-ledger summary {
+    details.hint-reveal summary, details.history-ledger summary, details.rag-ledger summary, details.active-reviews-ledger summary {
       cursor: pointer;
       color: #fcd34d;
       font-weight: 600;
       user-select: none;
     }
-    details.history-ledger summary {
-      color: #6ee7b7;
-    }
+    details.history-ledger summary { color: #6ee7b7; }
+    details.active-reviews-ledger { border-color: rgba(6, 182, 212, 0.35); }
+    details.active-reviews-ledger summary { color: #67e8f9; }
+    details.rag-ledger { border-color: rgba(168, 85, 247, 0.35); }
+    details.rag-ledger summary { color: #d8b4fe; }
     .history-item {
-      padding: 6px 0;
+      padding: 5px 0;
       border-top: 1px dashed rgba(148, 163, 184, 0.2);
       color: #cbd5e1;
       line-height: 1.4;
     }
-    .history-item:first-of-type {
-      margin-top: 5px;
-    }
+    .history-item:first-of-type { margin-top: 5px; }
     .status-pill {
       display: inline-block;
       font-size: 9px;
@@ -255,19 +537,28 @@
       background: rgba(244, 63, 94, 0.2);
       color: #fda4af;
     }
+    .status-pill.active-rev {
+      background: rgba(6, 182, 212, 0.2);
+      color: #67e8f9;
+    }
+    .status-pill.rag {
+      background: rgba(168, 85, 247, 0.22);
+      color: #d8b4fe;
+    }
 
-    .chip-group { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; margin-bottom: 10px; }
+    .chip-group { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; margin-bottom: 8px; }
     .chip {
-      font-size: 10px; padding: 3px 8px; border-radius: 999px;
+      font-size: 9.8px; padding: 2.5px 7px; border-radius: 999px;
       background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3);
       color: #c7d2fe; cursor: pointer; transition: all 0.15s;
     }
     .chip:hover { background: rgba(99, 102, 241, 0.35); color: #fff; }
 
+    /* Buttons & 2-Tier Action Hierarchy */
     .btn {
-      width: 100%; padding: 9px 11px; border-radius: var(--radius-sm); border: none;
-      font-weight: 600; font-size: 12px; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      width: 100%; padding: 8.5px 10px; border-radius: var(--radius-sm); border: none;
+      font-weight: 600; font-size: 11.5px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
       transition: all 0.2s ease;
     }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -280,7 +571,7 @@
     }
     .btn-secondary {
       background: rgba(30, 41, 59, 0.9); color: #e2e8f0;
-      border: 1px solid rgba(148, 163, 184, 0.3); margin-top: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.3); margin-top: 4px;
     }
     .btn-secondary:hover:not(:disabled) { background: rgba(51, 65, 85, 0.9); border-color: var(--accent-cyan); }
 
@@ -289,8 +580,8 @@
       border: 1px solid rgba(16, 185, 129, 0.55);
       color: #6ee7b7;
       margin-top: 6px;
-      font-size: 11.5px;
-      padding: 8.5px 10px;
+      font-size: 11px;
+      padding: 8px 9px;
     }
     .btn-learning-existing:hover:not(:disabled) {
       background: linear-gradient(135deg, rgba(16, 185, 129, 0.36), rgba(6, 182, 212, 0.3));
@@ -305,56 +596,95 @@
       border: 1px solid rgba(16, 185, 129, 0.5);
       color: #6ee7b7;
       margin-bottom: 10px;
-      padding: 8px 10px;
-      font-size: 11.5px;
+      padding: 7.5px 10px;
+      font-size: 11px;
     }
     .btn-open-learning-dialog:hover:not(:disabled) {
       background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(6, 182, 212, 0.28));
       color: #fff;
     }
 
-    .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    /* Compact 3-Column Quick Canvas Cleanup Toolbar */
+    .cleanup-divider {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-top: 9px;
+      margin-bottom: 5px;
+      padding-top: 7px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.2);
+    }
+    .cleanup-toolbar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
     .btn-accept-all {
-      background: rgba(16, 185, 129, 0.15); color: #6ee7b7;
-      border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px; padding: 8px 6px;
+      background: rgba(16, 185, 129, 0.14); color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.38); font-size: 10px; padding: 6px 4px;
     }
     .btn-accept-all:hover:not(:disabled) { background: rgba(16, 185, 129, 0.28); color: #fff; }
     .btn-clear-all {
-      background: rgba(244, 63, 94, 0.15); color: #fda4af;
-      border: 1px solid rgba(244, 63, 94, 0.4); font-size: 11px; padding: 8px 6px;
+      background: rgba(244, 63, 94, 0.14); color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.38); font-size: 10px; padding: 6px 4px;
     }
     .btn-clear-all:hover:not(:disabled) { background: rgba(244, 63, 94, 0.28); color: #fff; }
     .btn-clear-comments {
       background: rgba(245, 158, 11, 0.14); color: #fcd34d;
-      border: 1px solid rgba(245, 158, 11, 0.4); font-size: 11px; padding: 8px 6px; margin-top: 6px;
+      border: 1px solid rgba(245, 158, 11, 0.38); font-size: 10px; padding: 6px 4px;
     }
     .btn-clear-comments:hover:not(:disabled) { background: rgba(245, 158, 11, 0.28); color: #fff; }
-    .btn-sm { width: auto; padding: 6px 10px; font-size: 11px; }
+    .btn-sm { width: auto; padding: 6px 10px; font-size: 11px; flex-shrink: 0; }
 
     .empty-doc-banner {
       display: none; background: rgba(245, 158, 11, 0.12);
       border: 1px solid rgba(245, 158, 11, 0.4); border-radius: var(--radius-sm);
-      padding: 9px 10px; margin-bottom: 10px; font-size: 11px; color: #fde68a;
+      padding: 8px 9px; margin-bottom: 8px; font-size: 10.5px; color: #fde68a;
     }
     .toast-error {
       display: none; background: rgba(244, 63, 94, 0.15); border: 1px solid var(--accent-rose);
       color: #fecdd3; padding: 8px 10px; border-radius: var(--radius-sm);
-      font-size: 11px; margin-bottom: 10px; word-break: break-word;
+      font-size: 11px; margin-bottom: 8px; word-break: break-word;
     }
     .toast-info {
       display: none; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.45);
       color: #d1fae5; padding: 8px 10px; border-radius: var(--radius-sm);
-      font-size: 11px; margin-bottom: 10px; word-break: break-word;
+      font-size: 11px; margin-bottom: 8px; word-break: break-word;
     }
 
+    /* Process Dashboard & 4-Segment Progress Bar */
     .pipeline-title {
-      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-      color: var(--text-muted); margin: 8px 0 8px 2px;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px;
+      color: var(--text-muted); margin: 4px 0 6px 2px;
       display: flex; align-items: center; justify-content: space-between;
     }
+    .pipeline-progress {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .prog-seg {
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.2);
+      transition: all 0.25s ease;
+    }
+    .prog-seg.active {
+      background: var(--accent-cyan);
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.7);
+    }
+    .prog-seg.completed { background: var(--accent-emerald); }
+    .prog-seg.error { background: var(--accent-rose); }
+
     .step-card {
       background: var(--bg-card); border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: var(--radius-md); margin-bottom: 10px; overflow: hidden; transition: all 0.25s ease;
+      border-radius: var(--radius-md); margin-bottom: 8px; overflow: hidden; transition: all 0.25s ease;
     }
     .step-card.active { border-color: var(--accent-cyan); box-shadow: 0 0 15px rgba(6, 182, 212, 0.2); }
     .step-card.completed { border-color: rgba(16, 185, 129, 0.45); }
@@ -362,13 +692,13 @@
 
     .step-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 12px; cursor: pointer; user-select: none; background: rgba(15, 23, 42, 0.4);
+      padding: 8.5px 11px; cursor: pointer; user-select: none; background: rgba(15, 23, 42, 0.4);
     }
     .step-header:hover { background: rgba(30, 41, 59, 0.5); }
-    .step-left { display: flex; align-items: center; gap: 9px; }
+    .step-left { display: flex; align-items: center; gap: 8px; }
 
     .step-badge {
-      width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 700;
+      width: 21px; height: 21px; border-radius: 50%; font-size: 10.5px; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
       background: rgba(148, 163, 184, 0.2); color: var(--text-muted); flex-shrink: 0;
     }
@@ -376,30 +706,30 @@
     .step-card.completed .step-badge { background: var(--accent-emerald); color: #052e16; }
     .step-card.error .step-badge { background: var(--accent-rose); color: #fff; }
 
-    .step-name { font-size: 12px; font-weight: 600; }
+    .step-name { font-size: 11.5px; font-weight: 600; }
     .step-state-label {
-      font-size: 10px; color: var(--text-muted); padding: 2px 7px; border-radius: 99px;
-      background: rgba(255, 255, 255, 0.05); display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+      font-size: 9.5px; color: var(--text-muted); padding: 2px 7px; border-radius: 99px;
+      background: rgba(255, 255, 255, 0.05); display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
     }
     .step-body {
-      display: none; padding: 10px 12px; border-top: 1px solid rgba(255, 255, 255, 0.06); font-size: 11.5px;
+      display: none; padding: 9px 11px; border-top: 1px solid rgba(255, 255, 255, 0.06); font-size: 11px;
     }
     .step-card.open .step-body { display: block; }
 
     .spinner {
-      width: 13px; height: 13px; border: 2px solid rgba(6, 182, 212, 0.25);
+      width: 12px; height: 12px; border: 2px solid rgba(6, 182, 212, 0.25);
       border-top-color: var(--accent-cyan); border-radius: 50%;
       animation: spin 0.75s linear infinite; display: inline-block;
     }
     .loading-row {
-      display: flex; align-items: center; gap: 8px; color: var(--accent-cyan); font-size: 11.5px; padding: 4px 0;
+      display: flex; align-items: center; gap: 8px; color: var(--accent-cyan); font-size: 11px; padding: 4px 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .scope-badge-banner {
       display: flex; align-items: center; justify-content: space-between;
       background: rgba(99, 102, 241, 0.14); border: 1px solid rgba(99, 102, 241, 0.35);
-      border-radius: 6px; padding: 5px 8px; margin-bottom: 8px; font-size: 10.5px; color: #c7d2fe;
+      border-radius: 6px; padding: 5px 8px; margin-bottom: 8px; font-size: 10px; color: #c7d2fe;
     }
 
     .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px; }
@@ -407,19 +737,19 @@
       background: rgba(11, 15, 25, 0.7); border: 1px solid rgba(255, 255, 255, 0.07);
       border-radius: var(--radius-sm); padding: 5px 4px; text-align: center;
     }
-    .metric-val { font-size: 13px; font-weight: 700; color: var(--accent-cyan); }
-    .metric-lbl { font-size: 9px; color: var(--text-muted); }
+    .metric-val { font-size: 12.5px; font-weight: 700; color: var(--accent-cyan); }
+    .metric-lbl { font-size: 8.8px; color: var(--text-muted); }
 
     .suggestion-item {
       background: rgba(11, 15, 25, 0.75); border: 1px solid rgba(99, 102, 241, 0.25);
-      border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 8px;
+      border-radius: var(--radius-sm); padding: 8px 9px; margin-bottom: 7px;
     }
     .suggestion-item.visual-card {
       border-color: rgba(6, 182, 212, 0.4); background: rgba(8, 25, 38, 0.75);
     }
-    .sug-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .sug-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .cat-tag {
-      font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
+      font-size: 9.5px; font-weight: 600; padding: 2px 6px; border-radius: 4px;
       background: rgba(99, 102, 241, 0.2); color: #a5b4fc;
     }
     .cat-tag.visual-tag { background: rgba(6, 182, 212, 0.2); color: #67e8f9; }
@@ -432,29 +762,27 @@
       padding: 2px 5px; border-radius: 4px; display: inline; word-break: break-all;
     }
     .sug-explain {
-      margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(148, 163, 184, 0.2);
-      font-size: 11px; color: #cbd5e1;
+      margin-top: 5px; padding-top: 5px; border-top: 1px dashed rgba(148, 163, 184, 0.2);
+      font-size: 10.5px; color: #cbd5e1;
     }
 
     pre.json-box {
       background: var(--bg-code); border: 1px solid rgba(148, 163, 184, 0.2);
-      border-radius: var(--radius-sm); padding: 8px;
-      font-family: "SFMono-Regular", Consolas, monospace; font-size: 10.5px; color: #38bdf8;
-      max-height: 150px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+      border-radius: var(--radius-sm); padding: 7px;
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; color: #38bdf8;
+      max-height: 140px; overflow: auto; white-space: pre-wrap; word-break: break-all;
     }
 
     .app-footer {
-      margin-top: auto; padding-top: 12px; text-align: center;
-      font-size: 10px; color: var(--text-muted); opacity: 0.8;
+      margin-top: auto; padding-top: 10px; text-align: center;
+      font-size: 9.5px; color: var(--text-muted); opacity: 0.85;
     }
     .footer-brand-link {
       cursor: pointer;
       text-decoration: underline;
       transition: color 0.15s;
     }
-    .footer-brand-link:hover {
-      color: var(--accent-cyan);
-    }
+    .footer-brand-link:hover { color: var(--accent-cyan); }
   </style>
 </head>
 <body>
@@ -465,7 +793,7 @@
       <div class="brand-icon">✦</div>
       <div>
         <span class="brand-title">DocuMentor AI <span class="brand-info-dot">ⓘ</span></span>
-        <span id="brandSub" class="brand-sub">v1.0.3 • AI Proofreading Coach</span>
+        <span id="brandSub" class="brand-sub">v1.0.4 • AI Proofreading &amp; RAG Coach</span>
       </div>
     </div>
     <div class="header-right">
@@ -476,17 +804,30 @@
     </div>
   </div>
 
-  <!-- Alert & Info Banners -->
-  <div id="errorBox" class="toast-error"></div>
-  <div id="infoBox" class="toast-info"></div>
+  <!-- Compact 2-Row Status Bar (No Overlap Between Model Select & Status Badges) -->
+  <div id="statusBar" class="status-bar">
+    <div class="status-bar-top">
+      <select id="modelSelect" class="status-model-select" onchange="handleModelChange()" title="Gemini Model">
+        <option id="optModelFlash" value="gemini-3.8-flash" selected>⚡ 3.8 Flash (Fast)</option>
+        <option id="optModelArgon" value="gemini-4-argon">🧠 4 Argon (Deep)</option>
+      </select>
+      <button id="btnToggleSettings" class="btn-gear" onclick="toggleSettingsDrawer()" title="Engine, API Key &amp; Google Drive RAG Settings">⚙️</button>
+    </div>
+    <div class="status-badges">
+      <span id="statusApiBadge" class="status-chip" onclick="toggleSettingsDrawer()" title="Configure Gemini API Key">🔑 API</span>
+      <span id="statusRagBadge" class="status-chip" onclick="toggleSettingsDrawer()" title="Configure Google Drive RAG Folder">📚 RAG: OFF</span>
+    </div>
+  </div>
 
-  <!-- Settings Card -->
-  <div class="card">
-    <div class="card-header">
-      <span id="lblSettingsTitle">⚙️ AI Engine & API Settings</span>
+  <!-- Auto-Collapsing Settings & Google Drive RAG Drawer (Directly Below Status Bar) -->
+  <div id="settingsDrawer" class="settings-drawer">
+    <div class="card-header" style="margin-bottom: 6px;">
+      <span id="lblSettingsTitle">⚙️ AI Engine, API Key &amp; Drive RAG Settings</span>
+      <button class="btn-link" onclick="toggleSettingsDrawer()" id="btnCloseSettings">Close ✕</button>
     </div>
 
-    <div id="apiKeyInputContainer" style="margin-bottom: 10px;">
+    <!-- Gemini API Key -->
+    <div id="apiKeyInputContainer" style="margin-bottom: 8px;">
       <label id="lblApiKey" class="field-label">Gemini API Key</label>
       <div style="display: flex; gap: 6px;">
         <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
@@ -494,100 +835,145 @@
       </div>
     </div>
 
-    <div id="apiKeyConfiguredContainer" style="display: none; margin-bottom: 10px;">
+    <div id="apiKeyConfiguredContainer" style="display: none; margin-bottom: 8px;">
       <div class="api-configured-box">
         <span id="lblApiKeyConfigured">🔒 API Key Configured (Saved)</span>
         <button id="btnResetKey" class="btn-link" onclick="handleResetApiKey()">Reset</button>
       </div>
     </div>
 
-    <div>
+    <!-- Google Drive RAG Rulebook Folder or File (Optional) -->
+    <div class="drawer-section">
+      <label id="lblRagFolder" class="field-label">📚 Google Drive RAG Rulebook Folder or File (ID / URL)</label>
+      <div id="ragFolderInputContainer">
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="ragFolderInput" placeholder="Drive Folder or File ID / URL..." />
+          <button id="btnSaveRag" class="btn btn-primary btn-sm" onclick="handleSaveRagFolder()">Link</button>
+        </div>
+        <div id="lblRagHint" style="font-size: 9.5px; color: var(--text-muted); margin-top: 3px;">
+          Accepts a Drive Folder or a single File (.md, .txt, Google Doc, script) via ID or URL.
+        </div>
+      </div>
+
+      <div id="ragFolderConfiguredContainer" style="display: none;">
+        <div class="rag-configured-box">
+          <span id="lblRagFolderConfigured">📚 RAG Rule Source Linked</span>
+          <button id="btnResetRag" class="btn-link" onclick="handleResetRagFolder()">Clear</button>
+        </div>
+        <div id="ragFolderPreviewList" class="rag-files-mini-list" style="display: none;"></div>
+      </div>
+    </div>
+
+    <div class="drawer-section" style="display: none;">
       <label id="lblModelSelect" class="field-label">Gemini Model</label>
-      <select id="modelSelect" onchange="handleModelChange()">
-        <option id="optModelFlash" value="gemini-3.8-flash" selected>gemini-3.8-flash (Default / Fast)</option>
-        <option id="optModelArgon" value="gemini-4-argon">gemini-4-argon (High Precision)</option>
-      </select>
     </div>
   </div>
 
-  <!-- Prompt & Action Card -->
+  <!-- Sync Document State & Reset View Button (Keeps Model, API Key & RAG Settings) -->
+  <button id="btnSyncResetView" class="btn btn-sync-reset" onclick="handleSyncAndResetView()" title="Keeps your Model, API Key &amp; RAG settings, resets the sidebar view, and reloads the current Google Doc's suggestions, comments &amp; history">
+    <span id="lblBtnSyncResetView">🔄 Sync Doc &amp; Reset View</span>
+  </button>
+
+  <!-- Alert & Info Banners -->
+  <div id="errorBox" class="toast-error"></div>
+  <div id="infoBox" class="toast-info"></div>
+
+  <!-- Progressive Command Center Card -->
   <div class="card">
     <div class="card-header">
-      <span id="lblPromptSection">✍️ Proofreading Scope & Controls</span>
+      <span id="lblPromptSection">✍️ Coaching Mode &amp; Scope Controls</span>
     </div>
 
-    <!-- Toggle Switch 1: Entire Active Tab (Default OFF) vs Selection Only (ON) -->
-    <div id="scopeToggleBox" class="scope-toggle-box">
-      <div class="scope-info">
-        <span id="lblScopeToggleTitle" class="scope-title">🎯 Proofread Selection Only</span>
-        <span id="lblScopeToggleDesc" class="scope-desc">OFF (Default): Entire Active Tab (Text, Tables & Figures)</span>
+    <!-- 2-Way Segmented Coaching Mode Switcher (Synced with #hintOnlyToggle) -->
+    <input type="checkbox" id="hintOnlyToggle" style="display: none;" onchange="handleHintToggleChange()" />
+    <div id="hintToggleBox" class="mode-segmented">
+      <button type="button" id="modeTabSuggest" class="mode-seg-btn active-suggest" onclick="setCoachingMode(false)">
+        <span id="lblModeSuggest">✍️ Suggest &amp; Coach</span>
+      </button>
+      <button type="button" id="modeTabHint" class="mode-seg-btn" onclick="setCoachingMode(true)">
+        <span id="lblModeHint">💡 Hint-Only Mode</span>
+      </button>
+    </div>
+    <div id="lblHintToggleDesc" class="mode-caption">Proposes inline text replacements + coaching replies.</div>
+
+    <!-- 2-Column Compact Scope Pills -->
+    <div class="scope-pills-grid">
+      <!-- Toggle Switch 1: Selection Only -->
+      <div id="scopeToggleBox" class="scope-toggle-box">
+        <div class="scope-info">
+          <span id="lblScopeToggleTitle" class="scope-title">🎯 Selection Only</span>
+          <span id="lblScopeToggleDesc" class="scope-desc">Full Tab</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="selectionOnlyToggle" onchange="handleScopeToggleChange()" />
+          <span class="slider"></span>
+        </label>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="selectionOnlyToggle" onchange="handleScopeToggleChange()" />
-        <span class="slider"></span>
-      </label>
-    </div>
 
-    <!-- Toggle Switch 2: Hint-Only Mode (Comment Without Rewrite) -->
-    <div id="hintToggleBox" class="scope-toggle-box">
-      <div class="scope-info">
-        <span id="lblHintToggleTitle" class="scope-title">💡 Hint-Only Mode (Comment Without Rewrite)</span>
-        <span id="lblHintToggleDesc" class="scope-desc">OFF (Default): Proposes inline text replacements + coaching replies.</span>
+      <!-- Toggle Switch 2: Resolved Review History -->
+      <div id="resolvedToggleBox" class="scope-toggle-box">
+        <div class="scope-info">
+          <span id="lblResolvedToggleTitle" class="scope-title">📜 Resolved History</span>
+          <span id="lblResolvedToggleDesc" class="scope-desc">Active Only</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="includeResolvedToggle" onchange="handleResolvedToggleChange()" />
+          <span class="slider"></span>
+        </label>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="hintOnlyToggle" onchange="handleHintToggleChange()" />
-        <span class="slider"></span>
-      </label>
     </div>
 
-    <!-- Toggle Switch 3: Include Resolved Review History -->
-    <div id="resolvedToggleBox" class="scope-toggle-box">
-      <div class="scope-info">
-        <span id="lblResolvedToggleTitle" class="scope-title">📜 Include Resolved Review History</span>
-        <span id="lblResolvedToggleDesc" class="scope-desc">OFF (Default): Analyzes only active suggestions and open comments.</span>
+    <!-- 1-Line Live Scope Summary Bar -->
+    <div id="liveScopeSummaryBar" class="live-scope-summary">
+      <span id="lblLiveScopeSummary">📑 Full Tab • 💬 Active Reviews • 📚 RAG OFF</span>
+    </div>
+
+    <!-- Collapsible Custom Prompt & Initial Draft Accordion -->
+    <details id="promptDetailsAccordion" class="prompt-accordion">
+      <summary>
+        <span id="lblPromptAccordionSummary">💬 Custom Instructions &amp; Initial Draft</span>
+        <span id="promptActiveBadge" class="prompt-active-dot">Active</span>
+      </summary>
+      <div class="prompt-accordion-body">
+        <div id="emptyDocBanner" class="empty-doc-banner"></div>
+        <label id="lblCustomPrompt" class="field-label">Additional Proofreading Instructions (or Topic for Empty Document)</label>
+        <textarea id="customPrompt" oninput="updatePromptActiveBadge()"></textarea>
+        <div id="chipGroup" class="chip-group"></div>
+        <button id="btnGenerateInitial" class="btn btn-secondary" onclick="runGenerateInitialArticle()">
+          <span id="lblBtnGenerate">📝 Generate Initial Text from Prompt</span>
+        </button>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="includeResolvedToggle" onchange="handleResolvedToggleChange()" />
-        <span class="slider"></span>
-      </label>
-    </div>
+    </details>
 
-    <div id="emptyDocBanner" class="empty-doc-banner"></div>
-
-    <label id="lblCustomPrompt" class="field-label">Additional Proofreading Instructions (or Topic for Empty Document)</label>
-    <textarea id="customPrompt"></textarea>
-
-    <div id="chipGroup" class="chip-group"></div>
-
+    <!-- Primary Coaching Actions -->
     <button id="btnRunProofread" class="btn btn-primary" onclick="runFullPipeline()">
-      <span id="lblBtnRun">🚀 Run Proofreading (Suggest & Coach)</span>
+      <span id="lblBtnRun">🚀 Run Proofreading (Suggest &amp; Coach)</span>
     </button>
 
     <button id="btnGenerateLearningFromExisting" class="btn btn-learning-existing" onclick="runLearningSummaryFromExisting()">
-      <span id="lblBtnGenerateLearningFromExisting">🎓 Generate Learning Summary from Suggestions & Comments</span>
+      <span id="lblBtnGenerateLearningFromExisting">🎓 Generate Learning Summary from Suggestions &amp; Comments</span>
     </button>
 
-    <button id="btnGenerateInitial" class="btn btn-secondary" onclick="runGenerateInitialArticle()">
-      <span id="lblBtnGenerate">📝 Generate Initial Text from Prompt</span>
-    </button>
-
-    <div class="action-row">
-      <button id="btnAcceptAll" class="btn btn-accept-all" onclick="handleAcceptAll()">
-        <span id="lblBtnAcceptAll">✅ Accept All Suggestions</span>
+    <!-- Compact 3-Column Quick Canvas Cleanup Toolbar -->
+    <div class="cleanup-divider">
+      <span id="lblCleanupToolbar">🧹 Quick Canvas Cleanup</span>
+    </div>
+    <div class="cleanup-toolbar">
+      <button id="btnAcceptAll" class="btn btn-accept-all" onclick="handleAcceptAll()" title="Accept all pending inline suggestions">
+        <span id="lblBtnAcceptAll">✅ Accept</span>
       </button>
-      <button id="btnClearAll" class="btn btn-clear-all" onclick="handleClearAll()">
-        <span id="lblBtnClearAll">🧹 Clear All Suggestions</span>
+      <button id="btnClearAll" class="btn btn-clear-all" onclick="handleClearAll()" title="Reject/clear all pending inline suggestions">
+        <span id="lblBtnClearAll">🧹 Reject</span>
+      </button>
+      <button id="btnClearAllComments" class="btn btn-clear-comments" onclick="handleClearAllComments()" title="Delete all active comments">
+        <span id="lblBtnClearAllComments">🗑️ Comments</span>
       </button>
     </div>
-
-    <button id="btnClearAllComments" class="btn btn-clear-comments" onclick="handleClearAllComments()">
-      <span id="lblBtnClearAllComments">🗑️ Clear All Comments</span>
-    </button>
   </div>
 
   <!-- Quick Re-open Button for the Learning Summary Custom Dialog -->
   <button id="btnOpenLearningDialog" class="btn btn-open-learning-dialog" onclick="reopenLearningSummaryDialog()">
-    <span id="lblBtnOpenLearningDialog">🎓 View Writing Coach & Learning Summary Dialog</span>
+    <span id="lblBtnOpenLearningDialog">📖 Re-open Latest Learning Summary Dialog</span>
   </button>
 
   <!-- Process Dashboard -->
@@ -596,12 +982,20 @@
     <button id="btnExpandAll" class="btn-link" onclick="expandAllSteps()">Expand All</button>
   </div>
 
+  <!-- 4-Segment Live Pipeline Progress Bar -->
+  <div id="pipelineProgressBar" class="pipeline-progress">
+    <div id="progSeg1" class="prog-seg"></div>
+    <div id="progSeg2" class="prog-seg"></div>
+    <div id="progSeg3" class="prog-seg"></div>
+    <div id="progSeg4" class="prog-seg"></div>
+  </div>
+
   <!-- STEP 1 -->
   <div id="stepCard1" class="step-card">
     <div class="step-header" onclick="toggleStep(1)">
       <div class="step-left">
         <div id="stepBadge1" class="step-badge">1</div>
-        <span id="stepTitle1" class="step-name">Fetch Text, Tables & Figures</span>
+        <span id="stepTitle1" class="step-name">Fetch Text, Tables, Figures &amp; RAG</span>
       </div>
       <span id="stepState1" class="step-state-label">Waiting</span>
     </div>
@@ -613,7 +1007,7 @@
     <div class="step-header" onclick="toggleStep(2)">
       <div class="step-left">
         <div id="stepBadge2" class="step-badge">2</div>
-        <span id="stepTitle2" class="step-name">Generate AI Proofreading & Coaching</span>
+        <span id="stepTitle2" class="step-name">Generate AI Proofreading &amp; Coaching</span>
       </div>
       <span id="stepState2" class="step-state-label">Waiting</span>
     </div>
@@ -637,7 +1031,7 @@
     <div class="step-header" onclick="toggleStep(4)">
       <div class="step-left">
         <div id="stepBadge4" class="step-badge">4</div>
-        <span id="stepTitle4" class="step-name">Apply Suggestions & Comments</span>
+        <span id="stepTitle4" class="step-name">Apply Suggestions &amp; Comments</span>
       </div>
       <span id="stepState4" class="step-state-label">Waiting</span>
     </div>
@@ -646,38 +1040,68 @@
 
   <!-- Footer -->
   <div class="app-footer">
-    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.3 • Created by Kanshi Tanaike
+    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.4 • Created by Kanshi Tanaike
   </div>
 
   <script>
     let currentLang = 'en';
     let currentApiKeySource = 'none';
+    let currentHasApiKey = false;
+    let currentRagFolderSource = 'none';
+    let currentHasRagFolder = false;
+    let currentRagFolderId = '';
+    let currentRagFilesPreview = [];
     let isDocEmptyState = false;
     let latestLearningSummaryPayload = null;
 
     const I18N = {
       en: {
-        brandSub: 'v1.0.3 • AI Proofreading Coach',
+        brandSub: 'v1.0.4 • AI Proofreading & RAG Coach',
         brandTooltip: 'Click to view Developer, GitHub Repository & Version info',
-        settingsTitle: '⚙️ AI Engine & API Settings',
+        settingsTitle: '⚙️ Engine, API Key & Drive RAG',
+        closeSettings: 'Close ✕',
         apiKeyLabel: 'Gemini API Key',
         saveBtn: 'Save',
         apiKeyConfigured: '🔒 API Key Configured (Saved)',
-        apiKeyAdminManaged: '🔒 API Key Configured (School / Organization Admin)',
+        apiKeyAdminManaged: '🔒 API Key Configured (School / Org Admin)',
         resetBtn: 'Reset',
+        ragFolderLabel: '📚 Google Drive RAG Rulebook Folder or File (ID / URL)',
+        ragSaveBtn: 'Link',
+        ragClearBtn: 'Clear',
+        ragHint: 'Accepts a Drive Folder or a single File (.md, .txt, Google Doc, script) via ID or URL.',
+        ragPlaceholder: 'Drive Folder or File ID / URL...',
+        ragConfiguredUser: id => `📚 RAG Rule Source Linked (${id ? id.slice(0, 10) + '…' : 'Saved'})`,
+        ragConfiguredAdmin: '🔒 RAG Rule Source Configured (School / Org Admin)',
+        ragFilesDetected: count => `📄 ${count} RAG rulebook file(s) ready in Drive:`,
+        ragFilesEmpty: '⚠️ No readable .md/.txt or Google Docs files found.',
+        statusApiReady: '🔑 API: Ready',
+        statusApiAdmin: '🔑 API: Admin',
+        statusApiMissing: '🔑 API: Setup',
+        statusRagOff: '📚 RAG: OFF',
+        statusRagOn: count => count > 0 ? `📚 RAG: ${count} file(s)` : '📚 RAG: ON',
+        statusRagAdmin: count => count > 0 ? `📚 RAG: Admin (${count})` : '📚 RAG: Admin',
         modelLabel: 'Gemini Model',
-        modelFlash: 'gemini-3.8-flash (Default / Fast)',
-        modelArgon: 'gemini-4-argon (High Precision)',
-        promptSection: '✍️ Proofreading Scope & Controls',
-        scopeToggleTitle: '🎯 Proofread Selection Only',
-        scopeDescFullTab: 'OFF (Default): Proofreads the entire active tab (text, tables & figures).',
-        scopeDescSelection: 'ON: Proofreads only your selected text, tables, or figures.',
-        hintToggleTitle: '💡 Hint-Only Mode (Comment Without Rewrite)',
-        hintDescOff: 'OFF (Default): Proposes inline text replacements + coaching replies.',
-        hintDescOn: 'ON: Anchors coaching hints as comments so you can rewrite the sentence yourself first.',
-        resolvedToggleTitle: '📜 Include Resolved Review History',
-        resolvedDescOff: 'OFF (Default): Analyzes only active suggestions and open comments.',
-        resolvedDescOn: 'ON: Extracts resolved comments & accepted/rejected suggestions for cumulative learning.',
+        modelFlash: '⚡ 3.8 Flash (Fast)',
+        modelArgon: '🧠 4 Argon (Deep)',
+        promptSection: '✍️ Coaching Mode & Scope Controls',
+        modeSuggest: '✍️ Suggest & Coach',
+        modeHint: '💡 Hint-Only Mode',
+        scopeToggleTitle: '🎯 Selection Only',
+        scopeDescFullTab: 'Full Tab',
+        scopeDescSelection: 'Strict Excerpt',
+        hintDescOff: 'Proposes inline text replacements + coaching replies.',
+        hintDescOn: 'Anchors coaching hints as comments without spoiling the rewrite.',
+        resolvedToggleTitle: '📜 Resolved History',
+        resolvedDescOff: 'Active Only',
+        resolvedDescOn: '+Resolved Threads',
+        liveSummary: (isSel, isRes, hasRag, ragCount) => {
+          const scopePart = isSel ? '🎯 Selection Only (Strict Scope)' : '📑 Full Active Tab';
+          const revPart = isRes ? '📜 Active + Resolved' : '💬 Active Reviews';
+          const ragPart = hasRag ? (ragCount > 0 ? `📚 RAG: ${ragCount} file(s)` : '📚 RAG ON') : '📚 RAG OFF';
+          return `${scopePart} • ${revPart} • ${ragPart}`;
+        },
+        promptAccordionSummary: '💬 Custom Instructions & Initial Draft',
+        promptActiveBadge: 'Active',
         emptyBanner: '📄 <strong>The active tab is currently empty.</strong><br>Enter a topic in the prompt field below and click "Generate Initial Text" or "Run Proofreading".',
         customPromptLabel: 'Additional Proofreading Instructions (or Topic for Empty Document)',
         customPromptPlaceholder: 'e.g., Refine the text, tables, and charts for a professional business report.',
@@ -685,27 +1109,31 @@
           { label: '#Concise & Logical', text: 'Make the logical flow clearer and eliminate redundant expressions.' },
           { label: '#Business Tone', text: 'Refine into a polite, professional business tone.' },
           { label: '#Tables & Charts', text: 'Check data consistency across tables, charts, and body text.' },
-          { label: '#Grammar & Flow', text: 'Focus on fixing grammatical awkwardness and subject-verb agreement.' }
+          { label: '#RAG Rules Check', text: 'Strictly verify compliance with the attached Google Drive RAG rulebook files.' }
         ],
         btnRun: '🚀 Run Proofreading (Suggest & Coach)',
         btnRunHint: '💡 Run Proofreading (Hint-Only Comments)',
-        btnGenerateLearningFromExisting: '🎓 Generate Learning Summary from Suggestions & Comments',
+        btnGenerateLearningFromExisting: '🎓 Learning Summary from Suggestions & Comments',
         btnGenerate: '📝 Generate Initial Text from Prompt',
-        btnAcceptAll: '✅ Accept All Suggestions',
-        btnClearAll: '🧹 Clear All Suggestions',
-        btnClearAllComments: '🗑️ Clear All Comments',
+        cleanupToolbarLabel: '🧹 Quick Canvas Cleanup',
+        btnAcceptAll: '✅ Accept',
+        btnClearAll: '🧹 Reject',
+        btnClearAllComments: '🗑️ Comments',
+        btnSyncResetView: '🔄 Sync Doc & Reset View',
+        btnSyncResetViewTooltip: 'Keeps your Model, API Key & RAG settings, resets the sidebar view, and reloads the current Google Doc\'s suggestions, comments & history',
         btnOpenLearningDialog: '📖 Re-open Latest Learning Summary Dialog',
         dashboardTitle: '📊 Process Dashboard',
         expandAll: 'Expand All',
+        collapseAll: 'Collapse All',
         stepTitles: {
-          1: 'Fetch Text, Tables & Figures',
+          1: 'Fetch Text, Tables, Figures & RAG',
           2: 'Generate AI Proofreading & Coaching',
           3: 'Build Suggestion Request Body',
           4: 'Apply Suggestions & Comments'
         },
         stepDesc: {
-          1: 'Fetches active tab text, structured tables, figures/charts, and active/resolved review threads.',
-          2: 'Analyzes the manuscript and target elements to generate suggestions/hints and author learning advice.',
+          1: 'Fetches active tab text, structured tables, figures/charts, scoped review threads, and Drive RAG rules.',
+          2: 'Analyzes the manuscript, RAG rulebooks, and target elements to generate suggestions/hints and coaching advice.',
           3: 'Builds the batchUpdate payload for inline suggestions and/or anchored coaching comments.',
           4: 'Applies suggestions and learning comments to the Google Doc.'
         },
@@ -719,23 +1147,28 @@
         },
         step1Metrics: {
           scopeFullTab: tabTitle => `📑 Scope: Entire Active Tab (${tabTitle || 'Default Tab'})`,
-          scopeSelection: tabTitle => `🎯 Scope: Selected Content Only in "${tabTitle || 'Active Tab'}"`,
+          scopeSelection: tabTitle => `🎯 Scope: Selected Content Only in "${tabTitle || 'Active Tab'}" (Strict History Boundary)`,
           chars: 'Target Chars',
           existing: 'Active / Resolved',
           tables: 'Tables',
           visuals: 'Figures',
           existingAlert: (sugCount, comCount, resCount) => {
-            const base = `💡 <strong>Detected ${sugCount} active suggestion(s) and ${comCount} open comment(s)</strong>`;
-            const resPart = resCount > 0 ? ` <strong>(+ ${resCount} resolved review thread(s) in history)</strong>` : '';
+            const base = `💡 <strong>Detected ${sugCount} active suggestion(s) and ${comCount} open comment(s) in scope</strong>`;
+            const resPart = resCount > 0 ? ` <strong>(+ ${resCount} scoped resolved review thread(s))</strong>` : '';
             return `${base}${resPart}.<br>You can generate a Learning Summary from them or run additional AI proofreading.`;
           },
-          resolvedLedgerSummary: count => `📜 View Resolved Review History (${count} resolved/accepted/rejected thread(s))`,
+          activeLedgerSummary: (sugCount, comCount) => `💬 View Scoped Active Suggestions (${sugCount}) & Open Comments (${comCount})`,
+          resolvedLedgerSummary: count => `📜 View Scoped Resolved Review History (${count} thread(s))`,
+          ragLedgerSummary: count => `📚 Google Drive RAG Rulebook Files Loaded (${count} file(s))`,
           selectedPreviewLabel: 'Selected Target Text',
-          contextLabel: 'Full Active Tab Context (Text, Tables & Visual Markers)'
+          contextLabel: 'Scoped Context (Text, Tables & Visual Markers)'
         },
+        syncResetSuccessMsg: (tabTitle, charCount, sugCount, comCount, resCount) =>
+          `🔄 Synced "${tabTitle || 'Active Tab'}": ${charCount} chars, ${sugCount} active suggestion(s), ${comCount} open comment(s), and ${resCount} resolved history thread(s) loaded in Step 1.`,
         step2Labels: {
           overall: '📋 Overall Evaluation',
-          existingNote: '🔄 Consideration of Existing & Resolved Reviews:',
+          ragAppliedBadge: count => `📚 Grounded in ${count} Google Drive RAG Rulebook File(s):`,
+          existingNote: '🔄 Consideration of Existing Reviews & RAG Rules:',
           existingAnalysisSection: '🔍 Key Lessons from Active & Resolved Review History',
           visualSection: '💬 Figure/Chart & Table Review Comments (Created as Comments)',
           reason: '💡 Issue / Reason:',
@@ -745,7 +1178,12 @@
           hintModeBadge: '💡 Hint-Only Comment',
           noSuggestions: 'No revisions needed.',
           skippedForAction: 'Skipped (Direct Suggestion/Comment Management Action)',
-          skippedForLearningOnly: 'Skipped (Learning Summary Generation Mode — Document Unmodified)'
+          skippedForLearningOnly: 'Skipped (Learning Summary Generation Mode — Document Unmodified)',
+          noReviewsToSummarize: isSelection => isSelection
+            ? 'ℹ️ No suggestions or comments (active or resolved) were found within your selected range. Highlight a section that has suggestions/comments, or turn OFF "🎯 Selection Only".'
+            : 'ℹ️ No suggestions or comments were found in the active tab yet. Click "🚀 Run Proofreading" above to generate suggestions first, or run this on a document with reviewer comments.',
+          onlyResolvedReviewsFound: count =>
+            `ℹ️ No active (unresolved) suggestions or comments were found in scope, but ${count} resolved review thread(s) exist. Turn ON "📜 Resolved History" above and click the button again to summarize them.`
         },
         step3CompletedMsg: '✅ Completed building the suggestion and comment request payloads.',
         step4SuccessMsg: (count, isHintOnly) => isHintOnly
@@ -758,31 +1196,57 @@
         initialGenSuccess: count => `✨ <strong>Generated new text (${count} chars) in the active tab!</strong><br>Click <strong>"🚀 Run Proofreading"</strong> above to proofread this text.`,
         errors: {
           enterApiKey: 'Please enter an API key.',
+          enterRagFolder: 'Please enter a Google Drive Folder/File ID or URL.',
           enterPrompt: 'Please enter a topic or instruction in the Custom Prompt field.'
         }
       },
       ja: {
-        brandSub: 'v1.0.3 • AI推敲＆学習コーチ',
+        brandSub: 'v1.0.4 • AI推敲＆RAG学習コーチ',
         brandTooltip: 'クリックして開発者・GitHubリポジトリ・バージョン情報を表示',
-        settingsTitle: '⚙️ AI エンジン & API設定',
+        settingsTitle: '⚙️ AIエンジン・APIキー・Drive RAG設定',
+        closeSettings: '閉じる ✕',
         apiKeyLabel: 'Gemini API キー',
         saveBtn: '保存',
-        apiKeyConfigured: '🔒 APIキー入力済み (PropertiesService保存)',
+        apiKeyConfigured: '🔒 APIキー保存済み (UserProperties)',
         apiKeyAdminManaged: '🔒 APIキー設定済み (学校・組織の管理者設定)',
         resetBtn: '再設定',
+        ragFolderLabel: '📚 Google Drive RAGルール フォルダまたはファイル (ID / URL)',
+        ragSaveBtn: '連携',
+        ragClearBtn: '解除',
+        ragHint: 'フォルダまたは単体ファイル（.md / .txt / Google Docs / スクリプト等）のID・URLを指定できます。',
+        ragPlaceholder: 'フォルダまたはファイルのID / URL...',
+        ragConfiguredUser: id => `📚 RAGルール連携済み (${id ? id.slice(0, 10) + '…' : '保存済'})`,
+        ragConfiguredAdmin: '🔒 RAGルール設定済み (学校・組織の管理者設定)',
+        ragFilesDetected: count => `📄 RAGルールファイル (${count}件) を検出:`,
+        ragFilesEmpty: '⚠️ 読み取り可能なテキストまたはGoogle Docsが見つかりません。',
+        statusApiReady: '🔑 API: 設定済',
+        statusApiAdmin: '🔑 API: 管理者設定',
+        statusApiMissing: '🔑 API: 未設定',
+        statusRagOff: '📚 RAG: OFF',
+        statusRagOn: count => count > 0 ? `📚 RAG: ${count}件` : '📚 RAG: ON',
+        statusRagAdmin: count => count > 0 ? `📚 RAG: 管理者(${count})` : '📚 RAG: 管理者設定',
         modelLabel: '使用モデル',
-        modelFlash: 'gemini-3.8-flash (デフォルト・高速推敲)',
-        modelArgon: 'gemini-4-argon (高精度・深層推敲)',
-        promptSection: '✍️ 推敲範囲 & 実行コントロール',
-        scopeToggleTitle: '🎯 選択した部分のみを推敲',
-        scopeDescFullTab: 'OFF (デフォルト): アクティブなタブ全体（文章・表・図）を推敲',
-        scopeDescSelection: 'ON: 選択中の部分（文章・表・図など）のみを推敲',
-        hintToggleTitle: '💡 ヒントのみ表示モード（修正案を直接出さずにコメント）',
-        hintDescOff: 'OFF (デフォルト): 本文への修正提案（置換）＋理由・学習コメントを作成',
-        hintDescOn: 'ON: 修正文を直接提案せず、課題と改善ヒントのみをコメント表示（自力での推敲練習用）',
-        resolvedToggleTitle: '📜 解決済みの提案・コメント履歴も学習に含める',
-        resolvedDescOff: 'OFF (デフォルト): 現在未解決の提案・オープンなコメントのみを対象',
-        resolvedDescOn: 'ON: 解決済みコメントや承認・却下済みの提案履歴もDocs APIから抽出して分析',
+        modelFlash: '⚡ 3.8 Flash (高速)',
+        modelArgon: '🧠 4 Argon (高精度)',
+        promptSection: '✍️ コーチングモード & 推敲範囲',
+        modeSuggest: '✍️ 提案＆コーチ',
+        modeHint: '💡 ヒントのみ表示',
+        scopeToggleTitle: '🎯 選択範囲のみ',
+        scopeDescFullTab: 'タブ全体',
+        scopeDescSelection: '選択箇所のみ',
+        hintDescOff: '本文への修正提案（置換）＋理由・学習コメントを作成します。',
+        hintDescOn: '修正文を直接出さず、課題と改善ヒントのみをコメント付与します（自力推敲用）。',
+        resolvedToggleTitle: '📜 解決済み履歴',
+        resolvedDescOff: '未解決のみ',
+        resolvedDescOn: '+解決済も含める',
+        liveSummary: (isSel, isRes, hasRag, ragCount) => {
+          const scopePart = isSel ? '🎯 選択範囲のみ(厳格境界)' : '📑 タブ全体';
+          const revPart = isRes ? '📜 未解決＋解決済履歴' : '💬 未解決レビューのみ';
+          const ragPart = hasRag ? (ragCount > 0 ? `📚 RAG: ${ragCount}件` : '📚 RAG有効') : '📚 RAGなし';
+          return `${scopePart} • ${revPart} • ${ragPart}`;
+        },
+        promptAccordionSummary: '💬 カスタム指示・白紙からの新規作成',
+        promptActiveBadge: '入力あり',
         emptyBanner: '📄 <strong>現在アクティブなタブに文章がありません。</strong><br>下のプロンプト欄に作成したい文章のテーマを入力し、「文章を新規作成」または「推敲を実行」を押してください。',
         customPromptLabel: '追加の推敲指示（白紙の場合は作成したい文章の内容）',
         customPromptPlaceholder: '例: 本文や表・チャートの整合性を確認し、ビジネス文書として自然な表現に推敲してください。',
@@ -790,27 +1254,31 @@
           { label: '#簡潔・論理的', text: '論理展開を明確にし、冗長な表現を簡潔にしてください。' },
           { label: '#ビジネス敬語', text: 'ビジネスシーンにふさわしい丁寧で正確な敬語表現に修正してください。' },
           { label: '#表・図チャートの整合性', text: '本文と表・図・チャートのデータや表現の整合性を重点的に確認してください。' },
-          { label: '#文法・助詞チェック', text: '主語と述語のねじれや助詞の誤りを重点的にチェックしてください。' }
+          { label: '#RAG規約チェック', text: 'Google DriveのRAGルールファイルに記載された表記ルール・規約に厳密に準拠しているか確認してください。' }
         ],
         btnRun: '🚀 推敲を実行（提案＆学習コメント生成）',
         btnRunHint: '💡 推敲を実行（ヒントコメントのみ付与）',
         btnGenerateLearningFromExisting: '🎓 既存の提案・コメントから学習まとめを生成',
         btnGenerate: '📝 カスタムプロンプトから文章を新規作成',
-        btnAcceptAll: '✅ 全ての提案を承認',
-        btnClearAll: '🧹 全ての提案をクリア',
-        btnClearAllComments: '🗑️ 全てのコメントを削除',
+        cleanupToolbarLabel: '🧹 ドキュメント一括整理',
+        btnAcceptAll: '✅ 全承認',
+        btnClearAll: '🧹 全却下',
+        btnClearAllComments: '🗑️ コメント削除',
+        btnSyncResetView: '🔄 表示リセット＆現在のDoc状態を再読込',
+        btnSyncResetViewTooltip: 'モデル・APIキー・RAG設定を維持したままUI表示をリセットし、現在のGoogleドキュメントの提案・コメント・履歴を再読込します',
         btnOpenLearningDialog: '📖 直前の学習アドバイスまとめを再表示',
         dashboardTitle: '📊 プロセス・ダッシュボード',
         expandAll: 'すべて展開',
+        collapseAll: 'すべて折りたたむ',
         stepTitles: {
-          1: '文章・表・図チャートの取得',
+          1: '文章・表・図チャート・RAGの取得',
           2: '生成AIによる推敲案・学習解説の作成',
           3: '提案用リクエストボディの構築',
           4: 'Google Docsへの提案 & コメント適用'
         },
         stepDesc: {
-          1: 'アクティブなタブ（または選択範囲）の文章、表、図・チャート、未解決および解決済みの提案・コメント履歴を解析します。',
-          2: '原稿全体と推敲対象（または提案・コメント履歴）を理解し、修正提案/ヒントと学習アドバイスを生成します。',
+          1: '対象範囲の文章、表、図・チャート、スコープ内の提案・コメント履歴、およびDrive RAGルールを取得します。',
+          2: '原稿とRAGルールブック・対象要素を解析し、修正提案/ヒントと学習アドバイスを生成します。',
           3: '提案モードおよびヒント・解説コメント用のリクエストを構築します。',
           4: 'ドキュメント上に修正提案またはヒント解説コメント（図・表コメント含む）を反映します。'
         },
@@ -824,23 +1292,28 @@
         },
         step1Metrics: {
           scopeFullTab: tabTitle => `📑 対象範囲: アクティブなタブ全体 (${tabTitle || 'メインタブ'})`,
-          scopeSelection: tabTitle => `🎯 対象範囲: 選択した部分のみ (${tabTitle || 'アクティブタブ'})`,
+          scopeSelection: tabTitle => `🎯 対象範囲: 選択した部分のみ (${tabTitle || 'アクティブタブ'} / 履歴スコープ厳格境界)`,
           chars: '対象文字数',
           existing: '未解決 / 解決済',
           tables: '対象表(Table)',
           visuals: '対象図・チャート',
           existingAlert: (sugCount, comCount, resCount) => {
-            const base = `💡 <strong>未解決の提案 (${sugCount}件) とオープンなコメント (${comCount}件)</strong>`;
-            const resPart = resCount > 0 ? ` <strong>（＋解決済みのレビュー履歴 ${resCount}件）</strong>` : '';
+            const base = `💡 <strong>対象範囲内に未解決の提案 (${sugCount}件) とオープンなコメント (${comCount}件)</strong>`;
+            const resPart = resCount > 0 ? ` <strong>（＋スコープ内の解決済み履歴 ${resCount}件）</strong>` : '';
             return `${base}${resPart}を検出しました。<br>これらから学習アドバイスまとめを生成するか、配慮した上で追加の推敲を行えます。`;
           },
-          resolvedLedgerSummary: count => `📜 解決済みの提案・コメント履歴を表示 (${count}件の解決済/承認済/却下済スレッド)`,
+          activeLedgerSummary: (sugCount, comCount) => `💬 スコープ内の未解決の提案 (${sugCount}件) ＆ コメント (${comCount}件) を表示`,
+          resolvedLedgerSummary: count => `📜 スコープ内の解決済み提案・コメント履歴を表示 (${count}件)`,
+          ragLedgerSummary: count => `📚 Google Drive RAGルールファイル読込済み (${count}件)`,
           selectedPreviewLabel: '選択された推敲対象テキスト',
-          contextLabel: '取得したタブ全体のコンテキスト (本文・表・図チャート注釈)'
+          contextLabel: '取得した対象範囲コンテキスト (本文・表・図チャート注釈)'
         },
+        syncResetSuccessMsg: (tabTitle, charCount, sugCount, comCount, resCount) =>
+          `🔄 表示をリセットし、タブ「${tabTitle || 'アクティブタブ'}」の最新状態を再読込しました（文字数: ${charCount} / 未解決の提案: ${sugCount}件 / コメント: ${comCount}件 / 解決済み履歴: ${resCount}件）。`,
         step2Labels: {
           overall: '📋 全体講評',
-          existingNote: '🔄 既存および解決済みレビューへの配慮:',
+          ragAppliedBadge: count => `📚 Google Drive RAGルール適用済み (${count}件):`,
+          existingNote: '🔄 既存・解決済みレビューおよびRAGルールへの配慮:',
           existingAnalysisSection: '🔍 提案・コメント履歴（解決済み含む）から抽出された主な学び',
           visualSection: '💬 図・チャート・表への推敲コメント（コメントとして作成）',
           reason: '💡 課題・理由:',
@@ -850,7 +1323,12 @@
           hintModeBadge: '💡 ヒントのみ表示',
           noSuggestions: '修正提案はありません。',
           skippedForAction: 'スキップ（提案・コメントの一括管理処理のため）',
-          skippedForLearningOnly: 'スキップ（既存の提案・コメントからの学習まとめ生成モードのためドキュメント変更なし）'
+          skippedForLearningOnly: 'スキップ（既存の提案・コメントからの学習まとめ生成モードのためドキュメント変更なし）',
+          noReviewsToSummarize: isSelection => isSelection
+            ? 'ℹ️ 選択された範囲内に提案（サジェスト）やコメント（解決済み履歴を含む）が見つかりませんでした。提案・コメントがある箇所を選択するか、「🎯 選択範囲のみ」をOFFにしてください。'
+            : 'ℹ️ アクティブなタブ内に提案（サジェスト）やコメントがまだありません。先に上の「🚀 推敲を実行」を押して提案を作成するか、他のユーザーからの提案・コメントがあるドキュメントで実行してください。',
+          onlyResolvedReviewsFound: count =>
+            `ℹ️ 対象範囲内に未解決の提案・コメントはありませんが、解決済みのレビュー履歴が ${count} 件存在します。上の「📜 解決済み履歴」スイッチをONにしてから再度実行してください。`
         },
         step3CompletedMsg: '✅ リクエストボディの構築が完了しました。',
         step4SuccessMsg: (count, isHintOnly) => isHintOnly
@@ -863,6 +1341,7 @@
         initialGenSuccess: count => `✨ <strong>アクティブなタブ上に新しい文章（${count}文字）を作成しました！</strong><br>続けて上の <strong>「🚀 推敲を実行」</strong> ボタンを押すと、この文章に対してAI推敲の提案を行います。`,
         errors: {
           enterApiKey: 'APIキーを入力してください。',
+          enterRagFolder: 'Google DriveのフォルダまたはファイルのID / URLを入力してください。',
           enterPrompt: 'カスタムプロンプト欄に作成したい文章のテーマや内容を入力してください。'
         }
       }
@@ -875,19 +1354,38 @@
       google.script.run
         .withSuccessHandler(cfg => {
           currentLang = cfg.lang || 'en';
+          currentHasApiKey = Boolean(cfg.hasApiKey);
           currentApiKeySource = cfg.apiKeySource || (cfg.hasApiKey ? 'user' : 'none');
+          currentHasRagFolder = Boolean(cfg.hasRagFolder);
+          currentRagFolderSource = cfg.ragFolderSource || (cfg.hasRagFolder ? 'user' : 'none');
+          currentRagFolderId = cfg.ragFolderId || '';
           document.getElementById('selectionOnlyToggle').checked = Boolean(cfg.selectionOnly);
           document.getElementById('hintOnlyToggle').checked = Boolean(cfg.hintOnly);
           document.getElementById('includeResolvedToggle').checked = Boolean(cfg.includeResolved);
+          document.getElementById('modelSelect').value = cfg.selectedModel || 'gemini-3.8-flash';
           applyLanguageTexts();
           resetAllSteps();
-          updateApiKeyUi(cfg.hasApiKey, currentApiKeySource);
-          document.getElementById('modelSelect').value = cfg.selectedModel || 'gemini-3.8-flash';
+          updateApiKeyUi(currentHasApiKey, currentApiKeySource);
+          updateRagFolderUi(currentHasRagFolder, currentRagFolderSource, currentRagFolderId, []);
+          // Auto-open settings drawer on first run if no API key is configured
+          setSettingsDrawerOpen(!currentHasApiKey);
           checkInitialDocEmptyState();
         })
         .withFailureHandler(showError)
         .getInitialConfig();
     });
+
+    function toggleSettingsDrawer() {
+      const drawer = document.getElementById('settingsDrawer');
+      setSettingsDrawerOpen(!drawer.classList.contains('open'));
+    }
+
+    function setSettingsDrawerOpen(isOpen) {
+      const drawer = document.getElementById('settingsDrawer');
+      const btn = document.getElementById('btnToggleSettings');
+      drawer.classList.toggle('open', Boolean(isOpen));
+      btn.classList.toggle('open', Boolean(isOpen));
+    }
 
     /**
      * Opens the custom modal dialog showing Developer Name, GitHub Repo, and Version
@@ -952,23 +1450,35 @@
       document.getElementById('brandHeaderBtn').title = t.brandTooltip;
       document.getElementById('brandSub').textContent = t.brandSub;
       document.getElementById('lblSettingsTitle').textContent = t.settingsTitle;
+      document.getElementById('btnCloseSettings').textContent = t.closeSettings;
       document.getElementById('lblApiKey').textContent = t.apiKeyLabel;
       document.getElementById('btnSaveKey').textContent = t.saveBtn;
-      document.getElementById('lblApiKeyConfigured').textContent = currentApiKeySource === 'script'
-        ? t.apiKeyAdminManaged
-        : t.apiKeyConfigured;
       document.getElementById('btnResetKey').textContent = t.resetBtn;
+      document.getElementById('lblRagFolder').textContent = t.ragFolderLabel;
+      document.getElementById('ragFolderInput').placeholder = t.ragPlaceholder;
+      document.getElementById('btnSaveRag').textContent = t.ragSaveBtn;
+      document.getElementById('btnResetRag').textContent = t.ragClearBtn;
+      document.getElementById('lblRagHint').textContent = t.ragHint;
       document.getElementById('lblModelSelect').textContent = t.modelLabel;
       document.getElementById('optModelFlash').textContent = t.modelFlash;
       document.getElementById('optModelArgon').textContent = t.modelArgon;
 
       document.getElementById('lblPromptSection').textContent = t.promptSection;
+      document.getElementById('lblModeSuggest').textContent = t.modeSuggest;
+      document.getElementById('lblModeHint').textContent = t.modeHint;
       document.getElementById('lblScopeToggleTitle').textContent = t.scopeToggleTitle;
-      document.getElementById('lblHintToggleTitle').textContent = t.hintToggleTitle;
       document.getElementById('lblResolvedToggleTitle').textContent = t.resolvedToggleTitle;
+      document.getElementById('lblPromptAccordionSummary').textContent = t.promptAccordionSummary;
+      document.getElementById('promptActiveBadge').textContent = t.promptActiveBadge;
+      document.getElementById('lblCleanupToolbar').textContent = t.cleanupToolbarLabel;
+
+      updateApiKeyUi(currentHasApiKey, currentApiKeySource);
+      updateRagFolderUi(currentHasRagFolder, currentRagFolderSource, currentRagFolderId, currentRagFilesPreview);
       updateScopeToggleUi();
       updateHintToggleUi();
       updateResolvedToggleUi();
+      updateLiveScopeSummary();
+      updatePromptActiveBadge();
 
       document.getElementById('emptyDocBanner').innerHTML = t.emptyBanner;
       document.getElementById('lblCustomPrompt').textContent = t.customPromptLabel;
@@ -991,12 +1501,32 @@
       document.getElementById('lblBtnAcceptAll').textContent = t.btnAcceptAll;
       document.getElementById('lblBtnClearAll').textContent = t.btnClearAll;
       document.getElementById('lblBtnClearAllComments').textContent = t.btnClearAllComments;
+      document.getElementById('lblBtnSyncResetView').textContent = t.btnSyncResetView;
+      document.getElementById('btnSyncResetView').title = t.btnSyncResetViewTooltip;
       document.getElementById('lblBtnOpenLearningDialog').textContent = t.btnOpenLearningDialog;
       document.getElementById('lblDashboardTitle').textContent = t.dashboardTitle;
-      document.getElementById('btnExpandAll').textContent = t.expandAll;
+      updateExpandAllButtonLabel();
 
       for (let i = 1; i <= 4; i++) {
         document.getElementById('stepTitle' + i).textContent = t.stepTitles[i];
+      }
+    }
+
+    function updateLiveScopeSummary() {
+      const t = I18N[currentLang];
+      const isSel = document.getElementById('selectionOnlyToggle').checked;
+      const isRes = document.getElementById('includeResolvedToggle').checked;
+      const summaryEl = document.getElementById('lblLiveScopeSummary');
+      if (summaryEl) {
+        summaryEl.textContent = t.liveSummary(isSel, isRes, currentHasRagFolder, currentRagFilesPreview.length);
+      }
+    }
+
+    function updatePromptActiveBadge() {
+      const val = (document.getElementById('customPrompt').value || '').trim();
+      const badge = document.getElementById('promptActiveBadge');
+      if (badge) {
+        badge.classList.toggle('visible', val.length > 0);
       }
     }
 
@@ -1008,6 +1538,7 @@
 
       box.classList.toggle('selection-mode', isSelectionOnly);
       desc.textContent = isSelectionOnly ? t.scopeDescSelection : t.scopeDescFullTab;
+      updateLiveScopeSummary();
     }
 
     function handleScopeToggleChange() {
@@ -1016,13 +1547,23 @@
       google.script.run.saveScopePreference(isSelectionOnly);
     }
 
+    function setCoachingMode(isHintOnly) {
+      const toggle = document.getElementById('hintOnlyToggle');
+      if (toggle.disabled) return;
+      toggle.checked = Boolean(isHintOnly);
+      handleHintToggleChange();
+    }
+
     function updateHintToggleUi() {
       const t = I18N[currentLang];
       const isHintOnly = document.getElementById('hintOnlyToggle').checked;
-      const box = document.getElementById('hintToggleBox');
+      const tabSuggest = document.getElementById('modeTabSuggest');
+      const tabHint = document.getElementById('modeTabHint');
       const desc = document.getElementById('lblHintToggleDesc');
 
-      box.classList.toggle('hint-mode', isHintOnly);
+      tabSuggest.classList.toggle('active-suggest', !isHintOnly);
+      tabHint.classList.toggle('active-hint', isHintOnly);
+      desc.classList.toggle('hint-mode', isHintOnly);
       desc.textContent = isHintOnly ? t.hintDescOn : t.hintDescOff;
       document.getElementById('lblBtnRun').textContent = isHintOnly ? t.btnRunHint : t.btnRun;
     }
@@ -1041,6 +1582,7 @@
 
       box.classList.toggle('resolved-mode', includeResolved);
       desc.textContent = includeResolved ? t.resolvedDescOn : t.resolvedDescOff;
+      updateLiveScopeSummary();
     }
 
     function handleResolvedToggleChange() {
@@ -1050,22 +1592,84 @@
     }
 
     function updateApiKeyUi(hasApiKey, apiKeySource) {
+      currentHasApiKey = Boolean(hasApiKey);
       if (apiKeySource) {
         currentApiKeySource = apiKeySource;
       } else if (!hasApiKey) {
         currentApiKeySource = 'none';
       }
       const t = I18N[currentLang];
-      const isScriptManaged = hasApiKey && currentApiKeySource === 'script';
-      document.getElementById('apiKeyInputContainer').style.display = hasApiKey ? 'none' : 'block';
-      document.getElementById('apiKeyConfiguredContainer').style.display = hasApiKey ? 'block' : 'none';
+      const isScriptManaged = currentHasApiKey && currentApiKeySource === 'script';
+      document.getElementById('apiKeyInputContainer').style.display = currentHasApiKey ? 'none' : 'block';
+      document.getElementById('apiKeyConfiguredContainer').style.display = currentHasApiKey ? 'block' : 'none';
       document.getElementById('lblApiKeyConfigured').textContent = isScriptManaged
         ? t.apiKeyAdminManaged
         : t.apiKeyConfigured;
       document.getElementById('btnResetKey').style.display = isScriptManaged ? 'none' : 'inline-block';
-      if (hasApiKey) {
+      if (currentHasApiKey) {
         document.getElementById('apiKeyInput').value = '';
       }
+
+      const apiBadge = document.getElementById('statusApiBadge');
+      apiBadge.classList.remove('ready', 'admin', 'missing');
+      if (isScriptManaged) {
+        apiBadge.classList.add('admin');
+        apiBadge.textContent = t.statusApiAdmin;
+      } else if (currentHasApiKey) {
+        apiBadge.classList.add('ready');
+        apiBadge.textContent = t.statusApiReady;
+      } else {
+        apiBadge.classList.add('missing');
+        apiBadge.textContent = t.statusApiMissing;
+      }
+    }
+
+    function updateRagFolderUi(hasRagFolder, ragFolderSource, ragFolderId, ragFiles) {
+      currentHasRagFolder = Boolean(hasRagFolder);
+      currentRagFolderSource = ragFolderSource || (currentHasRagFolder ? 'user' : 'none');
+      if (ragFolderId !== undefined && ragFolderId !== null) {
+        currentRagFolderId = String(ragFolderId);
+      }
+      if (Array.isArray(ragFiles)) {
+        currentRagFilesPreview = ragFiles;
+      }
+
+      const t = I18N[currentLang];
+      const isScriptManaged = currentHasRagFolder && currentRagFolderSource === 'script';
+      document.getElementById('ragFolderInputContainer').style.display = currentHasRagFolder ? 'none' : 'block';
+      document.getElementById('ragFolderConfiguredContainer').style.display = currentHasRagFolder ? 'block' : 'none';
+      document.getElementById('lblRagFolderConfigured').textContent = isScriptManaged
+        ? t.ragConfiguredAdmin
+        : t.ragConfiguredUser(currentRagFolderId);
+      document.getElementById('btnResetRag').style.display = isScriptManaged ? 'none' : 'inline-block';
+      if (currentHasRagFolder) {
+        document.getElementById('ragFolderInput').value = '';
+      }
+
+      const previewEl = document.getElementById('ragFolderPreviewList');
+      if (currentHasRagFolder && currentRagFilesPreview.length > 0) {
+        previewEl.style.display = 'block';
+        previewEl.innerHTML = `<div style="color:#d8b4fe;font-weight:600;margin-bottom:3px;">${escapeHtml(t.ragFilesDetected(currentRagFilesPreview.length))}</div>` +
+          currentRagFilesPreview.map(rf => `<div>• ${escapeHtml(rf.title)} <span style="color:#94a3b8;">(${escapeHtml(rf.sourceType === 'GOOGLE_DOC' ? 'Google Doc' : 'Text')})</span></div>`).join('');
+      } else {
+        previewEl.style.display = 'none';
+        previewEl.innerHTML = '';
+      }
+
+      const ragBadge = document.getElementById('statusRagBadge');
+      ragBadge.classList.remove('rag-active', 'admin');
+      const count = currentRagFilesPreview.length;
+      if (isScriptManaged) {
+        ragBadge.classList.add('admin');
+        ragBadge.textContent = t.statusRagAdmin(count);
+      } else if (currentHasRagFolder) {
+        ragBadge.classList.add('rag-active');
+        ragBadge.textContent = t.statusRagOn(count);
+      } else {
+        ragBadge.textContent = t.statusRagOff;
+      }
+
+      updateLiveScopeSummary();
     }
 
     function handleSaveApiKey() {
@@ -1081,6 +1685,9 @@
         .withSuccessHandler(res => {
           setBusy(false);
           updateApiKeyUi(res.hasApiKey, res.apiKeySource || 'user');
+          if (res.hasApiKey) {
+            setSettingsDrawerOpen(false);
+          }
         })
         .withFailureHandler(err => {
           setBusy(false);
@@ -1092,9 +1699,48 @@
     function handleResetApiKey() {
       clearAlerts();
       google.script.run
-        .withSuccessHandler(res => updateApiKeyUi(res.hasApiKey, res.apiKeySource || 'none'))
+        .withSuccessHandler(res => {
+          updateApiKeyUi(res.hasApiKey, res.apiKeySource || 'none');
+          setSettingsDrawerOpen(true);
+        })
         .withFailureHandler(showError)
         .deleteApiKey();
+    }
+
+    function handleSaveRagFolder() {
+      clearAlerts();
+      const t = I18N[currentLang];
+      const rawFolder = document.getElementById('ragFolderInput').value.trim();
+      if (!rawFolder) {
+        showError(t.errors.enterRagFolder);
+        return;
+      }
+      setBusy(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          setBusy(false);
+          updateRagFolderUi(
+            res.hasRagFolder,
+            res.ragFolderSource || 'user',
+            res.ragFolderId || '',
+            res.ragFiles || []
+          );
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          showError(err);
+        })
+        .saveRagFolderId(rawFolder);
+    }
+
+    function handleResetRagFolder() {
+      clearAlerts();
+      google.script.run
+        .withSuccessHandler(res => {
+          updateRagFolderUi(res.hasRagFolder, res.ragFolderSource || 'none', '', []);
+        })
+        .withFailureHandler(showError)
+        .deleteRagFolderId();
     }
 
     function handleModelChange() {
@@ -1105,17 +1751,101 @@
     function appendChip(text) {
       const el = document.getElementById('customPrompt');
       el.value = el.value ? el.value + '\n' + text : text;
+      updatePromptActiveBadge();
       el.focus();
     }
 
     function checkInitialDocEmptyState() {
+      const t = I18N[currentLang];
+      setStepStatus(1, 'active', t.states.reloading, true);
       google.script.run
         .withSuccessHandler(docData => {
-          isDocEmptyState = docData.isEmpty;
+          isDocEmptyState = Boolean(docData.isEmpty);
           document.getElementById('emptyDocBanner').style.display = isDocEmptyState ? 'block' : 'none';
+          if (isDocEmptyState) {
+            document.getElementById('promptDetailsAccordion').open = true;
+          }
+          if (Array.isArray(docData.ragFiles)) {
+            updateRagFolderUi(
+              docData.hasRagFolder,
+              docData.ragFolderSource || currentRagFolderSource,
+              currentRagFolderId,
+              docData.ragFiles
+            );
+          }
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
         })
-        .withFailureHandler(() => {})
-        .step1_fetchDocument(false, currentLang);
+        .withFailureHandler(err => {
+          setStepStatus(1, 'error', t.states.error, true, err);
+        })
+        .step1_fetchDocument(false, currentLang, true);
+    }
+
+    /**
+     * Resets the sidebar UI controls & Process Dashboard while preserving the selected
+     * Gemini Model, API Key, and Google Drive RAG settings, then reloads the current
+     * Google Document's suggestions, comments, resolved history, tables, and figures into Step 1.
+     */
+    function handleSyncAndResetView() {
+      clearAlerts();
+      const t = I18N[currentLang];
+
+      // Reset UI inputs & mode/scope controls (keep Model, API Key & RAG intact)
+      const promptEl = document.getElementById('customPrompt');
+      if (promptEl) promptEl.value = '';
+      updatePromptActiveBadge();
+      const promptAcc = document.getElementById('promptDetailsAccordion');
+      if (promptAcc) promptAcc.open = false;
+
+      const hintToggle = document.getElementById('hintOnlyToggle');
+      if (hintToggle && hintToggle.checked) {
+        hintToggle.checked = false;
+        handleHintToggleChange();
+      }
+      const selToggle = document.getElementById('selectionOnlyToggle');
+      if (selToggle && selToggle.checked) {
+        selToggle.checked = false;
+        handleScopeToggleChange();
+      }
+      if (currentHasApiKey) {
+        setSettingsDrawerOpen(false);
+      }
+
+      resetAllSteps();
+      setBusy(true);
+      setStepStatus(1, 'active', t.states.reloading, true);
+
+      google.script.run
+        .withSuccessHandler(docData => {
+          setBusy(false);
+          isDocEmptyState = Boolean(docData.isEmpty);
+          document.getElementById('emptyDocBanner').style.display = isDocEmptyState ? 'block' : 'none';
+          if (isDocEmptyState && promptAcc) {
+            promptAcc.open = true;
+          }
+          renderStep1Result(docData);
+          setStepStatus(1, 'completed', t.states.completed, true);
+
+          const sugCount = (docData.existingSuggestions || []).length;
+          const comCount = (docData.existingComments || []).length;
+          const resCount = (docData.resolvedReviews || []).length;
+          showInfo(
+            t.syncResetSuccessMsg(
+              docData.activeTabTitle,
+              docData.charCount || 0,
+              sugCount,
+              comCount,
+              resCount
+            )
+          );
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          setStepStatus(1, 'error', t.states.error, true, err);
+          showError(err);
+        })
+        .step1_fetchDocument(false, currentLang, true);
     }
 
     /**
@@ -1157,14 +1887,14 @@
             })
             .withFailureHandler(err => {
               setBusy(false);
-              setStepStatus(4, 'error', t.states.error, true);
+              setStepStatus(4, 'error', t.states.error, true, err);
               showError(err);
             })
             [serverMethodName](targetIds, currentLang);
         })
         .withFailureHandler(err => {
           setBusy(false);
-          setStepStatus(1, 'error', t.states.error, true);
+          setStepStatus(1, 'error', t.states.error, true, err);
           showError(err);
         })
         .step1_fetchDocument(false, currentLang);
@@ -1192,6 +1922,7 @@
       const model = document.getElementById('modelSelect').value;
 
       if (!customPrompt) {
+        document.getElementById('promptDetailsAccordion').open = true;
         showError(t.errors.enterPrompt);
         return;
       }
@@ -1215,7 +1946,7 @@
         })
         .withFailureHandler(err => {
           setBusy(false);
-          setStepStatus(1, 'error', t.states.error, true);
+          setStepStatus(1, 'error', t.states.error, true, err);
           showError(err);
         })
         .generateInitialArticle(customPrompt, model, currentLang);
@@ -1243,6 +1974,32 @@
         .withSuccessHandler(docData => {
           renderStep1Result(docData);
           setStepStatus(1, 'completed', t.states.completed, true);
+
+          const sugCount = (docData.existingSuggestions || []).length;
+          const comCount = (docData.existingComments || []).length;
+          const allResCount = (docData.resolvedReviews || []).length;
+          const effectiveResCount = includeResolved ? allResCount : 0;
+
+          // Pre-check before starting Step 2: avoid starting spinner if no target reviews exist
+          if (sugCount === 0 && comCount === 0 && effectiveResCount === 0) {
+            setBusy(false);
+            const guideMsg = (!includeResolved && allResCount > 0)
+              ? t.step2Labels.onlyResolvedReviewsFound(allResCount)
+              : t.step2Labels.noReviewsToSummarize(Boolean(docData.selectionOnly));
+
+            setStepStatus(2, 'completed', t.states.skipped, true);
+            document.getElementById('stepBody2').innerHTML = `
+              <div style="background: rgba(245,158,11,0.13); border: 1px solid rgba(245,158,11,0.4); border-radius: 6px; padding: 8px 10px; color: #fde68a; line-height: 1.5;">
+                ${escapeHtml(guideMsg)}
+              </div>
+            `;
+            setStepStatus(3, 'completed', t.states.skipped, false);
+            document.getElementById('stepBody3').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForLearningOnly)}</p>`;
+            setStepStatus(4, 'completed', t.states.skipped, false);
+            document.getElementById('stepBody4').innerHTML = `<p style="color:var(--text-muted);">${escapeHtml(t.step2Labels.skippedForLearningOnly)}</p>`;
+            showInfo(guideMsg);
+            return;
+          }
 
           setStepStatus(2, 'active', t.states.running, true);
 
@@ -1273,14 +2030,14 @@
             })
             .withFailureHandler(err => {
               setBusy(false);
-              setStepStatus(2, 'error', t.states.error, true);
+              setStepStatus(2, 'error', t.states.error, true, err);
               showError(err);
             })
             .step2_generateLearningSummaryFromExisting(docData, customPrompt, model, currentLang, includeResolved);
         })
         .withFailureHandler(err => {
           setBusy(false);
-          setStepStatus(1, 'error', t.states.error, true);
+          setStepStatus(1, 'error', t.states.error, true, err);
           showError(err);
         })
         .step1_fetchDocument(selectionOnly, currentLang, true);
@@ -1308,12 +2065,13 @@
           if (docData.isEmpty) {
             isDocEmptyState = true;
             document.getElementById('emptyDocBanner').style.display = 'block';
+            document.getElementById('promptDetailsAccordion').open = true;
             if (customPrompt) {
               runGenerateInitialArticle();
               return;
             } else {
               setBusy(false);
-              setStepStatus(1, 'error', t.states.error, true);
+              setStepStatus(1, 'error', t.states.error, true, t.errors.enterPrompt);
               showError(t.errors.enterPrompt);
               return;
             }
@@ -1328,7 +2086,7 @@
         })
         .withFailureHandler(err => {
           setBusy(false);
-          setStepStatus(1, 'error', t.states.error, true);
+          setStepStatus(1, 'error', t.states.error, true, err);
           showError(err);
         })
         .step1_fetchDocument(selectionOnly, currentLang);
@@ -1347,7 +2105,7 @@
         })
         .withFailureHandler(err => {
           setBusy(false);
-          setStepStatus(2, 'error', t.states.error, true);
+          setStepStatus(2, 'error', t.states.error, true, err);
           showError(err);
         })
         .step2_generateProofreading(docData, customPrompt, model, currentLang, hintOnly, includeResolved);
@@ -1381,7 +2139,7 @@
         })
         .withFailureHandler(err => {
           setBusy(false);
-          setStepStatus(3, 'error', t.states.error, true);
+          setStepStatus(3, 'error', t.states.error, true, err);
           showError(err);
         })
         .step3_buildRequestBody(step3TargetData, aiResult, currentLang, hintOnly);
@@ -1400,18 +2158,18 @@
         })
         .withFailureHandler(err => {
           setBusy(false);
-          setStepStatus(4, 'error', t.states.error, true);
+          setStepStatus(4, 'error', t.states.error, true, err);
           showError(err);
         })
         .step4_applySuggestions(builtData, currentLang);
     }
 
     /**
-     * Renders Step 1 metrics, active tab / selection scope badge, resolved history ledger, and context.
+     * Renders Step 1 metrics, active tab / selection scope badge, RAG rulebook ledger, resolved history ledger, and context.
      */
     function renderStep1Result(docData) {
       const t = I18N[currentLang];
-      const sugCount = (docData.allSuggestionIds || docData.existingSuggestions || []).length;
+      const sugCount = (docData.existingSuggestions || []).length;
       const comCount = (docData.existingComments || []).length;
       const resolvedList = docData.resolvedReviews || [];
       const resCount = resolvedList.length;
@@ -1419,6 +2177,16 @@
       const existingDisplayVal = `${activeTotal}/${resCount}`;
       const tablesCount = (docData.tables || []).length;
       const visualsCount = (docData.visualElements || []).length;
+      const ragFiles = Array.isArray(docData.ragFiles) ? docData.ragFiles : [];
+
+      if (docData.hasRagFolder !== undefined) {
+        updateRagFolderUi(
+          docData.hasRagFolder,
+          docData.ragFolderSource || currentRagFolderSource,
+          currentRagFolderId,
+          ragFiles
+        );
+      }
 
       const scopeBannerText = docData.selectionOnly
         ? t.step1Metrics.scopeSelection(docData.activeTabTitle)
@@ -1433,20 +2201,80 @@
         `;
       }
 
+      let ragLedgerHtml = '';
+      if (ragFiles.length > 0) {
+        const ragItems = ragFiles.map((rf, idx) => `
+          <div class="history-item">
+            <span class="status-pill rag">#${idx + 1} ${escapeHtml(rf.sourceType === 'GOOGLE_DOC' ? 'Google Doc' : 'Text')}</span>
+            <strong style="color:#f1f5f9;">${escapeHtml(rf.title)}</strong>
+          </div>
+        `).join('');
+        ragLedgerHtml = `
+          <details class="rag-ledger">
+            <summary>${escapeHtml(t.step1Metrics.ragLedgerSummary(ragFiles.length))}</summary>
+            <div>${ragItems}</div>
+          </details>
+        `;
+      }
+
+      let activeReviewsLedgerHtml = '';
+      if (sugCount > 0 || comCount > 0) {
+        let activeItemsHtml = '';
+        (docData.existingSuggestions || []).forEach((s, idx) => {
+          const delPart = s.deletedText ? `<span class="diff-del">${escapeHtml(s.deletedText)}</span> ` : '';
+          const insPart = s.insertedText ? `<span class="diff-ins">${escapeHtml(s.insertedText)}</span>` : '';
+          const replyNotes = Array.isArray(s.comments) && s.comments.length > 0
+            ? `<div style="color:#cbd5e1; margin-top:2px;">💬 ${s.comments.map(c => escapeHtml(c.content || c.summaryText || '')).join(' | ')}</div>`
+            : '';
+          activeItemsHtml += `
+            <div class="history-item">
+              <div style="margin-bottom: 3px;">
+                <span class="status-pill active-rev">SUGGESTION #${idx + 1}</span>
+              </div>
+              <div>${delPart}${s.deletedText && s.insertedText ? '➔ ' : ''}${insPart}</div>
+              ${replyNotes}
+            </div>
+          `;
+        });
+        (docData.existingComments || []).forEach((c, idx) => {
+          const anchorSnippet = c.quotedText || c.anchorText ? `"${c.quotedText || c.anchorText}"` : '';
+          const bodyText = c.content || c.summaryText || c.text || '';
+          activeItemsHtml += `
+            <div class="history-item">
+              <div style="margin-bottom: 3px;">
+                <span class="status-pill active-rev">COMMENT #${idx + 1}</span>
+                <span style="color: #94a3b8; font-size: 10px;">(${escapeHtml(c.author || 'Reviewer')})</span>
+              </div>
+              ${anchorSnippet ? `<div style="color: #cbd5e1; margin-bottom: 2px;">Anchor: <span style="color:#fde68a;">${escapeHtml(anchorSnippet)}</span></div>` : ''}
+              <div style="color: #e2e8f0;">${escapeHtml(bodyText)}</div>
+            </div>
+          `;
+        });
+        activeReviewsLedgerHtml = `
+          <details class="active-reviews-ledger">
+            <summary>${escapeHtml(t.step1Metrics.activeLedgerSummary(sugCount, comCount))}</summary>
+            <div>${activeItemsHtml}</div>
+          </details>
+        `;
+      }
+
       let resolvedLedgerHtml = '';
       if (resCount > 0) {
         let ledgerItemsHtml = '';
         resolvedList.forEach((rv, idx) => {
-          const statusClass = (rv.status === 'REJECTED') ? 'rejected' : (rv.status === 'ACCEPTED' ? 'accepted' : '');
-          const anchorSnippet = rv.anchorText ? `"${rv.anchorText}"` : '';
+          const statusVal = rv.resolutionState || rv.status || 'RESOLVED';
+          const typeVal = rv.threadType || rv.type || 'COMMENT';
+          const statusClass = (statusVal === 'REJECTED') ? 'rejected' : '';
+          const anchorSnippet = rv.quotedText || rv.anchorText ? `"${rv.quotedText || rv.anchorText}"` : '';
+          const bodyText = rv.content || rv.summaryText || rv.text || '';
           ledgerItemsHtml += `
             <div class="history-item">
               <div style="margin-bottom: 3px;">
-                <span class="status-pill ${statusClass}">${escapeHtml(rv.type)} • ${escapeHtml(rv.status)}</span>
+                <span class="status-pill ${statusClass}">${escapeHtml(typeVal)} • ${escapeHtml(statusVal)}</span>
                 <span style="color: #94a3b8; font-size: 10px;">#${idx + 1} (${escapeHtml(rv.author || 'Reviewer')})</span>
               </div>
               ${anchorSnippet ? `<div style="color: #cbd5e1; margin-bottom: 2px;">Anchor: <span style="color:#fde68a;">${escapeHtml(anchorSnippet)}</span></div>` : ''}
-              <div style="color: #e2e8f0;">${escapeHtml(rv.text)}</div>
+              <div style="color: #e2e8f0;">${escapeHtml(bodyText)}</div>
             </div>
           `;
         });
@@ -1488,7 +2316,9 @@
             <div class="metric-lbl">${t.step1Metrics.visuals}</div>
           </div>
         </div>
+        ${ragLedgerHtml}
         ${existingHtml}
+        ${activeReviewsLedgerHtml}
         ${resolvedLedgerHtml}
         ${selectedPreviewHtml}
         <label class="field-label">${t.step1Metrics.contextLabel}</label>
@@ -1502,7 +2332,15 @@
     function renderStep2Result(aiResult) {
       const t = I18N[currentLang];
       const isHintOnly = Boolean(aiResult.hintOnly);
+      const ragUsed = Array.isArray(aiResult.ragFilesUsed) ? aiResult.ragFilesUsed : [];
       let cardsHtml = '';
+
+      const ragBannerHtml = ragUsed.length > 0
+        ? `<div style="margin-bottom:8px; padding:6px 8px; background:rgba(168,85,247,0.14); border:1px solid rgba(168,85,247,0.4); border-radius:6px; color:#e9d5ff; font-size:10.5px;">
+             <strong>${escapeHtml(t.step2Labels.ragAppliedBadge(ragUsed.length))}</strong>
+             ${ragUsed.map(rf => escapeHtml(rf.title)).join(', ')}
+           </div>`
+        : '';
 
       (aiResult.suggestions || []).forEach((s, idx) => {
         if (isHintOnly) {
@@ -1580,6 +2418,7 @@
         : '';
 
       document.getElementById('stepBody2').innerHTML = `
+        ${ragBannerHtml}
         <div style="margin-bottom: 8px; padding: 7px 9px; background: rgba(99,102,241,0.12); border-radius: 6px;">
           <strong>${t.step2Labels.overall} (${escapeHtml(aiResult.modelUsed)}):</strong><br>
           ${escapeHtml(aiResult.overallFeedback)}
@@ -1595,7 +2434,15 @@
      */
     function renderStep2ExistingAnalysisResult(aiResult) {
       const t = I18N[currentLang];
+      const ragUsed = Array.isArray(aiResult.ragFilesUsed) ? aiResult.ragFilesUsed : [];
       let itemsHtml = '';
+
+      const ragBannerHtml = ragUsed.length > 0
+        ? `<div style="margin-bottom:8px; padding:6px 8px; background:rgba(168,85,247,0.14); border:1px solid rgba(168,85,247,0.4); border-radius:6px; color:#e9d5ff; font-size:10.5px;">
+             <strong>${escapeHtml(t.step2Labels.ragAppliedBadge(ragUsed.length))}</strong>
+             ${ragUsed.map(rf => escapeHtml(rf.title)).join(', ')}
+           </div>`
+        : '';
 
       (aiResult.analyzedItems || []).forEach((item, idx) => {
         itemsHtml += `
@@ -1615,6 +2462,7 @@
       });
 
       document.getElementById('stepBody2').innerHTML = `
+        ${ragBannerHtml}
         <div style="margin-bottom: 8px; padding: 7px 9px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); border-radius: 6px;">
           <strong>${t.step2Labels.overall} (${escapeHtml(aiResult.modelUsed)}):</strong><br>
           ${escapeHtml(aiResult.overallFeedback)}
@@ -1651,17 +2499,23 @@
     }
 
     /**
-     * Updates the status badge, spinner, and body of a specific pipeline step.
+     * Updates the status badge, spinner, progress bar segment, and body of a specific pipeline step.
      */
-    function setStepStatus(stepNum, stateClass, labelText, autoOpen) {
+    function setStepStatus(stepNum, stateClass, labelText, autoOpen, errorDetail) {
       const card = document.getElementById('stepCard' + stepNum);
       const stateEl = document.getElementById('stepState' + stepNum);
       const badgeEl = document.getElementById('stepBadge' + stepNum);
       const bodyEl = document.getElementById('stepBody' + stepNum);
+      const segEl = document.getElementById('progSeg' + stepNum);
 
       card.classList.remove('active', 'completed', 'error');
       if (stateClass) card.classList.add(stateClass);
       if (autoOpen) card.classList.add('open');
+
+      if (segEl) {
+        segEl.classList.remove('active', 'completed', 'error');
+        if (stateClass) segEl.classList.add(stateClass);
+      }
 
       if (stateClass === 'active') {
         badgeEl.innerHTML = '<span class="spinner"></span>';
@@ -1670,13 +2524,26 @@
       } else if (stateClass === 'completed') {
         badgeEl.textContent = '✓';
         stateEl.textContent = labelText;
+        if (bodyEl && bodyEl.querySelector('.loading-row')) {
+          const t = I18N[currentLang];
+          bodyEl.innerHTML = `<p style="color: var(--text-muted);">${escapeHtml(t.stepDesc[stepNum] || labelText)}</p>`;
+        }
       } else if (stateClass === 'error') {
         badgeEl.textContent = '!';
         stateEl.textContent = labelText;
+        const errMsg = errorDetail
+          ? (errorDetail.message ? errorDetail.message : String(errorDetail))
+          : labelText;
+        bodyEl.innerHTML = `
+          <div style="background: rgba(244,63,94,0.14); border: 1px solid rgba(244,63,94,0.45); border-radius: 6px; padding: 7px 9px; color: #fecdd3; line-height: 1.45;">
+            ⚠️ ${escapeHtml(errMsg)}
+          </div>
+        `;
       } else {
         badgeEl.textContent = stepNum;
         stateEl.textContent = labelText;
       }
+      updateExpandAllButtonLabel();
     }
 
     /**
@@ -1693,23 +2560,49 @@
       for (let i = 1; i <= 4; i++) {
         const card = document.getElementById('stepCard' + i);
         card.classList.remove('active', 'completed', 'error', 'open');
+        const segEl = document.getElementById('progSeg' + i);
+        if (segEl) {
+          segEl.classList.remove('active', 'completed', 'error');
+        }
         document.getElementById('stepState' + i).textContent = t.states.waiting;
         document.getElementById('stepBadge' + i).textContent = i;
         document.getElementById('stepBody' + i).innerHTML = `<p style="color: var(--text-muted);">${escapeHtml(t.stepDesc[i])}</p>`;
       }
+      updateExpandAllButtonLabel();
+    }
+
+    function areAllStepsOpen() {
+      for (let i = 1; i <= 4; i++) {
+        const card = document.getElementById('stepCard' + i);
+        if (!card || !card.classList.contains('open')) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function updateExpandAllButtonLabel() {
+      const btn = document.getElementById('btnExpandAll');
+      if (!btn) return;
+      const t = I18N[currentLang];
+      btn.textContent = areAllStepsOpen() ? (t.collapseAll || 'Collapse All') : (t.expandAll || 'Expand All');
     }
 
     function toggleStep(stepNum) {
       document.getElementById('stepCard' + stepNum).classList.toggle('open');
+      updateExpandAllButtonLabel();
     }
 
     function expandAllSteps() {
+      const shouldClose = areAllStepsOpen();
       for (let i = 1; i <= 4; i++) {
-        document.getElementById('stepCard' + i).classList.add('open');
+        document.getElementById('stepCard' + i).classList.toggle('open', !shouldClose);
       }
+      updateExpandAllButtonLabel();
     }
 
     function setBusy(isBusy) {
+      document.getElementById('btnSyncResetView').disabled = isBusy;
       document.getElementById('btnRunProofread').disabled = isBusy;
       document.getElementById('btnGenerateLearningFromExisting').disabled = isBusy;
       document.getElementById('btnGenerateInitial').disabled = isBusy;
@@ -1718,6 +2611,8 @@
       document.getElementById('btnClearAllComments').disabled = isBusy;
       document.getElementById('selectionOnlyToggle').disabled = isBusy;
       document.getElementById('hintOnlyToggle').disabled = isBusy;
+      document.getElementById('modeTabSuggest').disabled = isBusy;
+      document.getElementById('modeTabHint').disabled = isBusy;
       document.getElementById('includeResolvedToggle').disabled = isBusy;
     }
 

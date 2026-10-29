@@ -1,16 +1,17 @@
 /**
  * Application Name: DocuMentor AI
  * Description: AI-Powered Proofreading & Multimodal Suggestion Coach for Google Docs
- * Version: v1.0.3
+ * Version: v1.0.4
  * Author: Kanshi Tanaike
  */
 
 const APP_NAME = 'DocuMentor AI';
-const APP_VERSION = 'v1.0.3';
+const APP_VERSION = 'v1.0.4';
 const APP_AUTHOR = 'Kanshi Tanaike';
 const APP_REPO_URL = 'https://github.com/tanaikech/DocuMentorAI';
 
 const PROP_KEY_API = 'GEMINI_API_KEY';
+const PROP_KEY_RAG_FOLDER = 'RAG_FOLDER_ID';
 const PROP_KEY_MODEL = 'GEMINI_SELECTED_MODEL';
 const PROP_KEY_LANG = 'UI_LANGUAGE';
 const PROP_KEY_SELECTION_ONLY = 'PROOFREAD_SELECTION_ONLY';
@@ -109,6 +110,109 @@ function getEffectiveApiKeyInfo_() {
 }
 
 /**
+ * Parses a Google Drive Folder or File input string (either a full URL or a raw ID)
+ * and extracts both the clean Drive resource ID and any URL-derived resource type hint.
+ *
+ * Supported formats:
+ * - Folder URL: `https://drive.google.com/drive/folders/{ID}` -> `{ id, hintType: 'folder' }`
+ * - Docs/File URL: `https://docs.google.com/document/d/{ID}/edit` or `https://drive.google.com/file/d/{ID}/view` -> `{ id, hintType: 'file' }`
+ * - Open/Query URL: `https://drive.google.com/open?id={ID}` -> `{ id, hintType: 'unknown' }`
+ * - Raw Folder or File ID: `{ID}` -> `{ id, hintType: 'unknown' }`
+ *
+ * @param {string} rawInput Folder/File ID or Google Drive/Docs URL.
+ * @return {Object} `{ id: string, hintType: 'folder'|'file'|'unknown' }`
+ */
+function parseDriveResourceInput_(rawInput) {
+  if (!rawInput || typeof rawInput !== 'string') {
+    return { id: '', hintType: 'unknown' };
+  }
+  const trimmed = rawInput.trim();
+  if (!trimmed) {
+    return { id: '', hintType: 'unknown' };
+  }
+
+  // 1. Match /folders/{ID} in Google Drive folder URLs
+  const folderUrlMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderUrlMatch && folderUrlMatch[1]) {
+    return { id: folderUrlMatch[1], hintType: 'folder' };
+  }
+
+  // 2. Match /d/{ID} in Google Docs / Google Drive single-file URLs
+  // e.g., https://docs.google.com/document/d/{ID}/edit or https://drive.google.com/file/d/{ID}/view
+  const fileUrlMatch = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileUrlMatch && fileUrlMatch[1]) {
+    return { id: fileUrlMatch[1], hintType: 'file' };
+  }
+
+  // 3. Match ?id={ID} or &id={ID} in Google Drive URLs
+  const queryIdMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (queryIdMatch && queryIdMatch[1]) {
+    return { id: queryIdMatch[1], hintType: 'unknown' };
+  }
+
+  // 4. Otherwise accept raw alphanumeric/dash/underscore Folder or File ID
+  if (/^[a-zA-Z0-9_-]{5,}$/.test(trimmed)) {
+    return { id: trimmed, hintType: 'unknown' };
+  }
+
+  return { id: '', hintType: 'unknown' };
+}
+
+/**
+ * Extracts a clean Google Drive Folder or File ID from either a raw ID string or a full Google Drive/Docs URL.
+ *
+ * @param {string} rawInput Folder/File ID or Google Drive/Docs URL.
+ * @return {string} Clean Folder or File ID, or empty string if invalid/empty.
+ */
+function extractDriveFolderId_(rawInput) {
+  return parseDriveResourceInput_(rawInput).id;
+}
+
+/**
+ * Resolves the effective Google Drive RAG Folder ID and its storage source.
+ * Priority:
+ * 1. ScriptProperties (`RAG_FOLDER_ID`) — used when an IT administrator, educator, or team lead
+ *    pre-configures a shared organization/school rulebook folder in Project Settings > Script Properties.
+ *    When present, the folder is locked as 'script' (admin-managed).
+ * 2. UserProperties (`RAG_FOLDER_ID`) — used for individual setup via the sidebar UI.
+ *
+ * @return {Object} { folderId: string, hasRagFolder: boolean, ragFolderSource: 'script'|'user'|'none' }
+ */
+function getEffectiveRagFolderInfo_() {
+  try {
+    const scriptProps = PropertiesService.getScriptProperties();
+    const rawScriptFolder = scriptProps ? scriptProps.getProperty(PROP_KEY_RAG_FOLDER) : null;
+    const scriptFolderId = extractDriveFolderId_(rawScriptFolder || '');
+    if (scriptFolderId) {
+      return {
+        folderId: scriptFolderId,
+        hasRagFolder: true,
+        ragFolderSource: 'script'
+      };
+    }
+  } catch (e) {}
+
+  try {
+    const userProps = PropertiesService.getUserProperties();
+    const rawUserFolder = userProps ? userProps.getProperty(PROP_KEY_RAG_FOLDER) : null;
+    const userFolderId = extractDriveFolderId_(rawUserFolder || '');
+    if (userFolderId) {
+      return {
+        folderId: userFolderId,
+        hasRagFolder: true,
+        ragFolderSource: 'user'
+      };
+    }
+  } catch (e) {}
+
+  return {
+    folderId: '',
+    hasRagFolder: false,
+    ragFolderSource: 'none'
+  };
+}
+
+/**
  * Retrieves the initial configuration from ScriptProperties and UserProperties.
  * The raw API key is never returned to the client.
  *
@@ -117,12 +221,13 @@ function getEffectiveApiKeyInfo_() {
 function getInitialConfig() {
   const props = PropertiesService.getUserProperties();
   const keyInfo = getEffectiveApiKeyInfo_();
+  const ragInfo = getEffectiveRagFolderInfo_();
   const savedModel = props.getProperty(PROP_KEY_MODEL) || DEFAULT_MODEL;
   const savedLang = props.getProperty(PROP_KEY_LANG) || DEFAULT_LANG;
   const savedSelectionOnly = props.getProperty(PROP_KEY_SELECTION_ONLY) === 'true';
   const savedHintOnly = props.getProperty(PROP_KEY_HINT_ONLY) === 'true';
   const rawIncludeResolved = props.getProperty(PROP_KEY_INCLUDE_RESOLVED);
-  const savedIncludeResolved = rawIncludeResolved === null ? true : rawIncludeResolved === 'true';
+  const savedIncludeResolved = rawIncludeResolved === null ? false : rawIncludeResolved === 'true';
 
   return {
     appName: APP_NAME,
@@ -131,6 +236,9 @@ function getInitialConfig() {
     appRepoUrl: APP_REPO_URL,
     hasApiKey: keyInfo.hasApiKey,
     apiKeySource: keyInfo.apiKeySource,
+    hasRagFolder: ragInfo.hasRagFolder,
+    ragFolderSource: ragInfo.ragFolderSource,
+    ragFolderId: ragInfo.ragFolderSource === 'user' ? ragInfo.folderId : '',
     selectedModel: ALLOWED_MODELS.includes(savedModel) ? savedModel : DEFAULT_MODEL,
     lang: (savedLang === 'ja' || savedLang === 'en') ? savedLang : DEFAULT_LANG,
     selectionOnly: savedSelectionOnly,
@@ -170,6 +278,66 @@ function deleteApiKey() {
     success: true,
     hasApiKey: keyInfo.hasApiKey,
     apiKeySource: keyInfo.apiKeySource
+  };
+}
+
+/**
+ * Saves the Google Drive RAG Rulebook Folder or File ID (or URL) in UserProperties
+ * (when not locked by an admin ScriptProperty).
+ *
+ * @param {string} rawFolderInput Google Drive Folder/File ID or URL.
+ * @return {Object} Status object.
+ */
+function saveRagFolderId(rawFolderInput) {
+  let currentDocId = '';
+  try {
+    currentDocId = DocumentApp.getActiveDocument().getId();
+  } catch (e) {}
+
+  const ragInfo = getEffectiveRagFolderInfo_();
+  if (ragInfo.ragFolderSource === 'script') {
+    const adminRagFiles = fetchRagRuleFilesFromDrive_(ragInfo.folderId, currentDocId, false);
+    return {
+      success: true,
+      hasRagFolder: true,
+      ragFolderSource: 'script',
+      ragFolderId: '',
+      ragFiles: adminRagFiles
+    };
+  }
+  const spec = parseDriveResourceInput_(rawFolderInput);
+  const cleanId = spec.id;
+  if (!cleanId) {
+    throw new Error('Please enter a valid Google Drive Folder/File ID or URL.');
+  }
+  if (currentDocId && cleanId === currentDocId) {
+    throw new Error('The specified file is the currently open Google Document itself. Please specify a separate RAG rulebook file or folder.');
+  }
+  const ragFiles = fetchRagRuleFilesFromDrive_(rawFolderInput, currentDocId, false);
+  PropertiesService.getUserProperties().setProperty(PROP_KEY_RAG_FOLDER, cleanId);
+  return {
+    success: true,
+    hasRagFolder: true,
+    ragFolderSource: 'user',
+    ragFolderId: cleanId,
+    ragFiles: ragFiles
+  };
+}
+
+/**
+ * Deletes the stored Google Drive RAG Folder ID from UserProperties.
+ * If an admin RAG Folder ID is configured in ScriptProperties, that admin setting remains active.
+ *
+ * @return {Object} Status object.
+ */
+function deleteRagFolderId() {
+  PropertiesService.getUserProperties().deleteProperty(PROP_KEY_RAG_FOLDER);
+  const ragInfo = getEffectiveRagFolderInfo_();
+  return {
+    success: true,
+    hasRagFolder: ragInfo.hasRagFolder,
+    ragFolderSource: ragInfo.ragFolderSource,
+    ragFolderId: ragInfo.ragFolderSource === 'user' ? ragInfo.folderId : ''
   };
 }
 
@@ -297,13 +465,36 @@ function step1_fetchDocument(selectionOnly, lang, allowFallbackToFullTab) {
   }
 
   const docJson = fetchRawDocumentJson_(docId);
-  return parseDocumentStructure_(docJson, {
+  const parsedDoc = parseDocumentStructure_(docJson, {
     activeTabId: tabInfo.tabId,
     activeTabTitle: tabInfo.tabTitle,
     selectionOnly: isSelectionOnly,
     selectionDescriptors,
     isJa
   });
+
+  // Attach configured Google Drive RAG folder metadata (lightweight summary for Step 1 UI)
+  const ragInfo = getEffectiveRagFolderInfo_();
+  let ragFilesMeta = [];
+  if (ragInfo.hasRagFolder && ragInfo.folderId) {
+    try {
+      const ragFiles = fetchRagRuleFilesFromDrive_(ragInfo.folderId, docId, false);
+      ragFilesMeta = ragFiles.map(rf => ({
+        id: rf.id,
+        name: rf.name,
+        title: rf.title || rf.name,
+        type: rf.type,
+        sourceType: rf.sourceType
+      }));
+    } catch (e) {
+      ragFilesMeta = [];
+    }
+  }
+  parsedDoc.hasRagFolder = ragInfo.hasRagFolder;
+  parsedDoc.ragFolderSource = ragInfo.ragFolderSource;
+  parsedDoc.ragFiles = ragFilesMeta;
+
+  return parsedDoc;
 }
 
 /**
@@ -584,6 +775,620 @@ function resolveTargetDocumentTab_(docJson, preferredTabId) {
 }
 
 /**
+ * Determines whether a Google Drive file is a supported text/rule file or Google Doc for RAG grounding.
+ *
+ * @param {string} fileName File name.
+ * @param {string} mimeType File MIME type.
+ * @return {boolean} True if supported.
+ */
+function isSupportedRagTextFile_(fileName, mimeType) {
+  const mime = String(mimeType || '').toLowerCase();
+  const name = String(fileName || '').toLowerCase();
+  if (mime === 'application/vnd.google-apps.document') return true;
+  if (mime.startsWith('text/')) return true;
+  const allowedMimes = [
+    'application/json',
+    'application/javascript',
+    'application/x-javascript',
+    'application/xml',
+    'application/x-yaml',
+    'application/yaml',
+    'application/sql'
+  ];
+  if (allowedMimes.includes(mime)) return true;
+  return /\.(md|markdown|txt|csv|tsv|json|yaml|yml|xml|html|css|js|ts|gs|py|go|java|c|cpp|h|rs|rb|php|sql|sh)$/i.test(name);
+}
+
+/**
+ * Extracts plain text (including tables and all tabs) from a Google Docs API v1 JSON object.
+ * Used when reading Google Docs inside a RAG folder if Drive API v3 export is not enabled.
+ *
+ * @param {Object} docJson Raw Document JSON from Google Docs API v1.
+ * @return {string} Extracted plain text.
+ */
+function extractPlainTextFromDocsJson_(docJson) {
+  if (!docJson || typeof docJson !== 'object') return '';
+
+  function extractFromStructuralElements(elements) {
+    if (!Array.isArray(elements)) return '';
+    const chunks = [];
+    elements.forEach(el => {
+      if (!el) return;
+      if (el.paragraph && Array.isArray(el.paragraph.elements)) {
+        let pText = '';
+        el.paragraph.elements.forEach(pe => {
+          if (pe && pe.textRun && typeof pe.textRun.content === 'string') {
+            if (!pe.textRun.suggestedDeletionIds || pe.textRun.suggestedDeletionIds.length === 0) {
+              pText += pe.textRun.content;
+            }
+          }
+        });
+        if (pText.trim()) chunks.push(pText.replace(/\n+$/, ''));
+      } else if (el.table && Array.isArray(el.table.tableRows)) {
+        el.table.tableRows.forEach(row => {
+          const rowCells = (row.tableCells || []).map(cell =>
+            extractFromStructuralElements(cell.content || []).replace(/\n+/g, ' ').trim()
+          );
+          if (rowCells.some(Boolean)) {
+            chunks.push('| ' + rowCells.join(' | ') + ' |');
+          }
+        });
+      }
+    });
+    return chunks.join('\n');
+  }
+
+  const allTabs = flattenDocumentTabs_(docJson.tabs);
+  if (allTabs.length > 0) {
+    const tabTexts = [];
+    allTabs.forEach(t => {
+      const dt = t.documentTab || {};
+      const bodyContent = (dt.body && dt.body.content) ? dt.body.content : [];
+      const text = extractFromStructuralElements(bodyContent).trim();
+      if (text) {
+        const tabTitle = (t.tabProperties && t.tabProperties.title) ? t.tabProperties.title : '';
+        tabTexts.push(tabTitle && allTabs.length > 1 ? `### [${tabTitle}]\n${text}` : text);
+      }
+    });
+    return tabTexts.join('\n\n').trim();
+  }
+
+  const bodyContent = (docJson.body && docJson.body.content) ? docJson.body.content : [];
+  return extractFromStructuralElements(bodyContent).trim();
+}
+
+/**
+ * Fallback reader that uses Apps Script's built-in DriveApp (and Docs API / DocumentApp)
+ * when the Google Drive REST API v3 (`drive.googleapis.com`) is not enabled on the
+ * script's default GCP project (which otherwise returns HTTP 403 on `drive/v3/files`).
+ * Automatically distinguishes whether `cleanTargetId` refers to a Google Drive Folder
+ * or a Single File (e.g., a `.md`/`.txt`/script file or a Google Doc).
+ *
+ * @param {string} cleanTargetId Cleaned Google Drive Folder or File ID.
+ * @param {string=} currentDocId Active Google Document ID to exclude.
+ * @param {boolean=} includeContent Whether to read full text contents of each file.
+ * @param {number=} restStatusCode Optional HTTP status code from the Drive v3 REST attempt.
+ * @param {string=} hintType Optional URL-derived type hint ('folder' | 'file' | 'unknown').
+ * @return {Array<Object>} List of RAG rule file objects.
+ */
+function fetchRagRuleFilesViaDriveApp_(cleanTargetId, currentDocId, includeContent, restStatusCode, hintType) {
+  const token = ScriptApp.getOAuthToken();
+
+  function tryResolveAsFolder() {
+    if (typeof DriveApp === 'undefined' || !DriveApp || typeof DriveApp.getFolderById !== 'function') {
+      return null;
+    }
+    try {
+      const f = DriveApp.getFolderById(cleanTargetId);
+      if (!f || typeof f.getFiles !== 'function') return null;
+      f.getName();
+      return f;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function tryResolveAsSingleFile() {
+    if (typeof DriveApp !== 'undefined' && DriveApp && typeof DriveApp.getFileById === 'function') {
+      try {
+        const file = DriveApp.getFileById(cleanTargetId);
+        if (file) {
+          if (typeof file.isTrashed === 'function' && file.isTrashed()) return null;
+          const fMime = String(file.getMimeType() || '');
+          if (fMime === 'application/vnd.google-apps.folder') {
+            return null;
+          }
+          const fName = file.getName();
+          const fId = file.getId() || cleanTargetId;
+          if (fId && fName) {
+            return {
+              id: fId,
+              name: fName,
+              mimeType: fMime,
+              fileObj: file
+            };
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Fallback: Check if cleanTargetId is a single Google Document accessible via Docs API v1
+    try {
+      const docUrl = `https://docs.googleapis.com/v1/documents/${encodeURIComponent(cleanTargetId)}?includeTabsContent=true`;
+      const docRes = UrlFetchApp.fetch(docUrl, {
+        method: 'get',
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      });
+      if (docRes.getResponseCode() === 200) {
+        const docJson = JSON.parse(docRes.getContentText('UTF-8') || '{}');
+        if (docJson && (docJson.documentId || docJson.title)) {
+          return {
+            id: docJson.documentId || cleanTargetId,
+            name: docJson.title || cleanTargetId,
+            mimeType: 'application/vnd.google-apps.document',
+            fileObj: null,
+            prefetchedDocJson: docJson
+          };
+        }
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
+  let folder = null;
+  let singleFile = null;
+  let lastDriveError = '';
+
+  if (hintType === 'file') {
+    singleFile = tryResolveAsSingleFile();
+    if (!singleFile) {
+      folder = tryResolveAsFolder();
+    }
+  } else {
+    folder = tryResolveAsFolder();
+    if (!folder) {
+      singleFile = tryResolveAsSingleFile();
+    }
+  }
+
+  if (!folder && !singleFile) {
+    throw new Error(
+      `Google Drive Access Error (${restStatusCode || 403}): Unable to access RAG folder or file "${cleanTargetId}". Please verify that the Folder/File ID or URL is correct and shared with your Google account.${lastDriveError ? ' (' + lastDriveError + ')' : ''}`
+    );
+  }
+
+  const rawCandidates = [];
+  if (singleFile) {
+    if (!currentDocId || singleFile.id !== currentDocId) {
+      if (
+        isSupportedRagTextFile_(singleFile.name, singleFile.mimeType) ||
+        singleFile.mimeType === 'application/octet-stream'
+      ) {
+        rawCandidates.push(singleFile);
+      }
+    }
+  } else if (folder) {
+    const filesIter = folder.getFiles();
+    while (filesIter.hasNext()) {
+      const file = filesIter.next();
+      try {
+        if (typeof file.isTrashed === 'function' && file.isTrashed()) continue;
+        const fId = file.getId();
+        const fName = file.getName();
+        const fMime = file.getMimeType();
+        if (!fId || !fName) continue;
+        if (currentDocId && fId === currentDocId) continue;
+        if (!isSupportedRagTextFile_(fName, fMime)) continue;
+        rawCandidates.push({
+          id: fId,
+          name: fName,
+          mimeType: fMime,
+          fileObj: file
+        });
+      } catch (e) {}
+    }
+    rawCandidates.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+
+  const candidateFiles = rawCandidates.slice(0, 25);
+  if (candidateFiles.length === 0) return [];
+
+  if (!includeContent) {
+    return candidateFiles.map(f => {
+      const isGoogleDoc = f.mimeType === 'application/vnd.google-apps.document';
+      return {
+        id: f.id,
+        title: f.name,
+        name: f.name,
+        sourceType: isGoogleDoc ? 'GOOGLE_DOC' : 'TEXT_FILE',
+        type: isGoogleDoc ? 'Google Doc' : 'Text File',
+        mimeType: 'text/markdown',
+        charCount: 0,
+        content: ''
+      };
+    });
+  }
+
+  // Batch-fetch any Google Docs in parallel via the already-enabled Google Docs API v1
+  const googleDocTextMap = {};
+  const googleDocCandidates = candidateFiles.filter(f => {
+    if (f.mimeType !== 'application/vnd.google-apps.document') return false;
+    if (f.prefetchedDocJson) {
+      const extracted = extractPlainTextFromDocsJson_(f.prefetchedDocJson);
+      if (extracted) {
+        googleDocTextMap[f.id] = extracted;
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (googleDocCandidates.length > 0) {
+    try {
+      const docRequests = googleDocCandidates.map(f => ({
+        url: `https://docs.googleapis.com/v1/documents/${encodeURIComponent(f.id)}?includeTabsContent=true`,
+        method: 'get',
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      }));
+      const docResponses = UrlFetchApp.fetchAll(docRequests);
+      docResponses.forEach((res, idx) => {
+        const docId = googleDocCandidates[idx].id;
+        if (res.getResponseCode() === 200) {
+          try {
+            const docJson = JSON.parse(res.getContentText('UTF-8') || '{}');
+            const extracted = extractPlainTextFromDocsJson_(docJson);
+            if (extracted) {
+              googleDocTextMap[docId] = extracted;
+            }
+          } catch (parseErr) {}
+        }
+      });
+    } catch (batchErr) {}
+  }
+
+  const ragFiles = [];
+  candidateFiles.forEach(src => {
+    const isGoogleDoc = src.mimeType === 'application/vnd.google-apps.document';
+    let textContent = '';
+
+    if (isGoogleDoc) {
+      textContent = googleDocTextMap[src.id] || '';
+      if (!textContent && typeof DocumentApp !== 'undefined' && DocumentApp && typeof DocumentApp.openById === 'function') {
+        try {
+          const openedDoc = DocumentApp.openById(src.id);
+          const bodyObj = openedDoc.getBody();
+          textContent = bodyObj ? (bodyObj.getText() || '').trim() : '';
+        } catch (docOpenErr) {}
+      }
+    } else if (src.fileObj) {
+      try {
+        textContent = (src.fileObj.getBlob().getDataAsString('UTF-8') || '').trim();
+      } catch (blobErr) {}
+    }
+
+    if (textContent.length > 0) {
+      ragFiles.push({
+        id: src.id,
+        title: src.name,
+        name: src.name,
+        sourceType: isGoogleDoc ? 'GOOGLE_DOC' : 'TEXT_FILE',
+        type: isGoogleDoc ? 'Google Doc' : 'Text File',
+        mimeType: 'text/markdown',
+        charCount: textContent.length,
+        content: textContent
+      });
+    }
+  });
+
+  return ragFiles;
+}
+
+/**
+ * Resolves a specified Google Drive Folder or Single File (by ID or URL) into a list
+ * of supported RAG rule files (`.md`, `.txt`, code/script files, and Google Docs),
+ * optionally extracting their UTF-8 text content in parallel for RAG grounding.
+ * Automatically distinguishes between a Folder ID and a File ID, excludes the currently
+ * open Google Document itself (`currentDocId`), and seamlessly falls back to built-in
+ * `DriveApp` + `Docs API` if the Google Drive REST API v3 (`drive.googleapis.com`) is
+ * not enabled on the script's GCP project (HTTP 403).
+ *
+ * @param {string} rawFolderOrFileInput Google Drive Folder/File ID or URL.
+ * @param {string=} currentDocId Active Google Document ID to exclude.
+ * @param {boolean=} includeContent If true, fetches full text content of each file in parallel.
+ * @return {Array<Object>} List of RAG rule file objects ({ id, name, type, mimeType, content }).
+ */
+function fetchRagRuleFilesFromDrive_(rawFolderOrFileInput, currentDocId, includeContent) {
+  const spec = parseDriveResourceInput_(rawFolderOrFileInput);
+  const cleanTargetId = spec.id;
+  if (!cleanTargetId) return [];
+
+  const token = ScriptApp.getOAuthToken();
+  const headers = { Authorization: 'Bearer ' + token };
+
+  let rawFiles = null;
+  let isSingleFileTarget = false;
+
+  // When input is a single-file URL or a raw ID ('unknown'), inspect the resource metadata first
+  // to determine whether cleanTargetId is a single file or a folder.
+  if (spec.hintType !== 'folder') {
+    const metaUrl =
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(cleanTargetId)}` +
+      '?fields=id,name,mimeType,trashed&supportsAllDrives=true';
+    const metaRes = UrlFetchApp.fetch(metaUrl, {
+      method: 'get',
+      headers: headers,
+      muteHttpExceptions: true
+    });
+
+    if (metaRes.getResponseCode() !== 200) {
+      return fetchRagRuleFilesViaDriveApp_(
+        cleanTargetId,
+        currentDocId,
+        includeContent,
+        metaRes.getResponseCode(),
+        spec.hintType
+      );
+    }
+
+    const metaJson = JSON.parse(metaRes.getContentText() || '{}');
+    if (Array.isArray(metaJson.files)) {
+      // Compat with mocks returning { files: [...] } for any drive/v3/files request
+      rawFiles = metaJson.files;
+    } else if (metaJson && metaJson.id && metaJson.mimeType) {
+      if (metaJson.trashed === true) {
+        return [];
+      }
+      if (metaJson.mimeType !== 'application/vnd.google-apps.folder') {
+        isSingleFileTarget = true;
+        rawFiles = [
+          {
+            id: metaJson.id,
+            name: metaJson.name,
+            mimeType: metaJson.mimeType
+          }
+        ];
+      }
+    }
+  }
+
+  // If rawFiles is still null, cleanTargetId is a Folder -> list files inside the folder
+  if (rawFiles === null) {
+    const q = `'${cleanTargetId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
+    const listUrl =
+      'https://www.googleapis.com/drive/v3/files' +
+      `?q=${encodeURIComponent(q)}` +
+      '&fields=files(id,name,mimeType)' +
+      '&pageSize=25' +
+      '&orderBy=name' +
+      '&supportsAllDrives=true' +
+      '&includeItemsFromAllDrives=true';
+
+    const listRes = UrlFetchApp.fetch(listUrl, {
+      method: 'get',
+      headers: headers,
+      muteHttpExceptions: true
+    });
+
+    if (listRes.getResponseCode() !== 200) {
+      return fetchRagRuleFilesViaDriveApp_(
+        cleanTargetId,
+        currentDocId,
+        includeContent,
+        listRes.getResponseCode(),
+        spec.hintType
+      );
+    }
+
+    const listJson = JSON.parse(listRes.getContentText() || '{}');
+    rawFiles = Array.isArray(listJson.files) ? listJson.files : [];
+  }
+
+  const candidateFiles = rawFiles.filter(f => {
+    if (!f || !f.id || !f.name) return false;
+    if (currentDocId && f.id === currentDocId) return false;
+    if (isSingleFileTarget && f.mimeType === 'application/octet-stream') return true;
+    return isSupportedRagTextFile_(f.name, f.mimeType);
+  });
+
+  if (candidateFiles.length === 0) return [];
+
+  if (!includeContent) {
+    return candidateFiles.map(f => {
+      const isGoogleDoc = f.mimeType === 'application/vnd.google-apps.document';
+      return {
+        id: f.id,
+        title: f.name,
+        name: f.name,
+        sourceType: isGoogleDoc ? 'GOOGLE_DOC' : 'TEXT_FILE',
+        type: isGoogleDoc ? 'Google Doc' : 'Text File',
+        mimeType: 'text/markdown',
+        charCount: 0,
+        content: ''
+      };
+    });
+  }
+
+  const downloadRequests = candidateFiles.map(f => {
+    const isGoogleDoc = f.mimeType === 'application/vnd.google-apps.document';
+    const fileUrl = isGoogleDoc
+      ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(f.id)}/export?mimeType=text/plain`
+      : `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(f.id)}?alt=media&supportsAllDrives=true`;
+    return {
+      url: fileUrl,
+      method: 'get',
+      headers: headers,
+      muteHttpExceptions: true
+    };
+  });
+
+  const downloadResponses = UrlFetchApp.fetchAll(downloadRequests);
+  const ragFiles = [];
+
+  downloadResponses.forEach((res, idx) => {
+    const src = candidateFiles[idx];
+    const isGoogleDoc = src.mimeType === 'application/vnd.google-apps.document';
+    let textContent = '';
+
+    if (res.getResponseCode() === 200) {
+      textContent = (res.getContentText('UTF-8') || '').trim();
+    } else if (typeof DriveApp !== 'undefined' && DriveApp) {
+      // Fallback for individual file if Drive v3 download/export fails
+      try {
+        if (isGoogleDoc && typeof DocumentApp !== 'undefined' && DocumentApp) {
+          textContent = (DocumentApp.openById(src.id).getBody().getText() || '').trim();
+        } else {
+          textContent = (DriveApp.getFileById(src.id).getBlob().getDataAsString('UTF-8') || '').trim();
+        }
+      } catch (fallbackErr) {}
+    }
+
+    if (textContent.length > 0) {
+      ragFiles.push({
+        id: src.id,
+        title: src.name,
+        name: src.name,
+        sourceType: isGoogleDoc ? 'GOOGLE_DOC' : 'TEXT_FILE',
+        type: isGoogleDoc ? 'Google Doc' : 'Text File',
+        mimeType: 'text/markdown',
+        charCount: textContent.length,
+        content: textContent
+      });
+    }
+  });
+
+  return ragFiles;
+}
+
+/**
+ * Normalizes anchor range descriptors from a Google Docs commentAnchor or comment/suggestion object
+ * into a clean list of `{ startIndex, endIndex }` intervals.
+ *
+ * @param {Object|Array} rawAnchor Raw anchor or range container.
+ * @return {Array<Object>} List of `{ startIndex: number, endIndex: number }`.
+ */
+function normalizeAnchorRanges_(rawAnchor) {
+  if (!rawAnchor) return [];
+  const rawList = Array.isArray(rawAnchor)
+    ? rawAnchor
+    : (Array.isArray(rawAnchor.ranges)
+        ? rawAnchor.ranges
+        : (Array.isArray(rawAnchor.anchorRanges)
+            ? rawAnchor.anchorRanges
+            : (Array.isArray(rawAnchor.anchorSpans)
+                ? rawAnchor.anchorSpans
+                : (rawAnchor.range
+                    ? [rawAnchor.range]
+                    : (rawAnchor.anchorSpan ? [rawAnchor.anchorSpan] : [rawAnchor])))));
+  const normalized = [];
+  rawList.forEach(item => {
+    if (!item || typeof item !== 'object') return;
+    const r = (item.range && typeof item.range === 'object')
+      ? item.range
+      : ((item.anchorSpan && typeof item.anchorSpan === 'object') ? item.anchorSpan : item);
+    const s = Number(r.startIndex);
+    const e = Number(r.endIndex);
+    if (Number.isFinite(s) && Number.isFinite(e) && s >= 0 && e >= s) {
+      normalized.push({
+        startIndex: s,
+        endIndex: Math.max(s + 1, e)
+      });
+    }
+  });
+  return normalized;
+}
+
+/**
+ * Checks whether any interval in `rangesA` overlaps with any interval in `rangesB`.
+ *
+ * @param {Array<Object>} rangesA First list of `{ startIndex, endIndex }`.
+ * @param {Array<Object>} rangesB Second list of `{ startIndex, endIndex }`.
+ * @return {boolean} True if at least one interval overlaps.
+ */
+function rangesOverlap_(rangesA, rangesB) {
+  if (!Array.isArray(rangesA) || !Array.isArray(rangesB) || rangesA.length === 0 || rangesB.length === 0) {
+    return false;
+  }
+  return rangesA.some(a =>
+    rangesB.some(b => a.startIndex < b.endIndex && a.endIndex > b.startIndex)
+  );
+}
+
+/**
+ * Filters active comments or resolved review threads strictly to the user's selected scope
+ * when `Proofread Selection Only` is enabled (Fail-Closed boundary).
+ *
+ * @param {Array<Object>} reviewItems List of active comment or resolved review objects.
+ * @param {Array<Object>} selectionRanges Selected character index intervals (`{ startIndex, endIndex }`).
+ * @param {Array<string>} selectedTextsPool Normalized text strings belonging to the selected scope.
+ * @param {Array<string>} unselectedTextsPool Normalized text strings outside the selected scope.
+ * @param {Object=} existingSuggestionsMap Optional map of inline suggestions by suggestionId.
+ * @return {Array<Object>} Strictly scoped review items.
+ */
+function filterReviewsBySelectionScope_(reviewItems, selectionRanges, selectedTextsPool, unselectedTextsPool, existingSuggestionsMap) {
+  if (!Array.isArray(reviewItems) || reviewItems.length === 0) return [];
+  const selRanges = Array.isArray(selectionRanges) ? selectionRanges : [];
+  const selTexts = (Array.isArray(selectedTextsPool) ? selectedTextsPool : [])
+    .map(t => String(t || '').trim())
+    .filter(Boolean);
+  const unselTexts = (Array.isArray(unselectedTextsPool) ? unselectedTextsPool : [])
+    .map(t => String(t || '').trim())
+    .filter(Boolean);
+  const sugMap = existingSuggestionsMap || {};
+
+  return reviewItems.filter(item => {
+    if (!item || typeof item !== 'object') return false;
+
+    // 1. Collect any known coordinate ranges for this comment/suggestion thread
+    const itemRanges = normalizeAnchorRanges_(item.anchorRanges || item.ranges || item.range || []);
+    if (item.suggestionId && sugMap[item.suggestionId]) {
+      const sugEntry = sugMap[item.suggestionId];
+      if (Number.isFinite(sugEntry.startIndex) && Number.isFinite(sugEntry.endIndex)) {
+        itemRanges.push({
+          startIndex: Number(sugEntry.startIndex),
+          endIndex: Math.max(Number(sugEntry.startIndex) + 1, Number(sugEntry.endIndex))
+        });
+      }
+    }
+    if (Number.isFinite(item.startIndex) && Number.isFinite(item.endIndex)) {
+      itemRanges.push({
+        startIndex: Number(item.startIndex),
+        endIndex: Math.max(Number(item.startIndex) + 1, Number(item.endIndex))
+      });
+    }
+
+    // Rule A: When coordinate ranges exist on the thread, strictly require coordinate overlap with the selection
+    if (itemRanges.length > 0) {
+      return rangesOverlap_(itemRanges, selRanges);
+    }
+
+    // Rule B (Fail-Closed): When no coordinate ranges exist (e.g., detached resolved anchor),
+    // require a non-empty anchor quote that matches within the selected text and is not uniquely anchored to unselected text
+    const quote = String(item.quotedText || item.anchorText || '').replace(/\n+/g, ' ').trim();
+    if (!quote) {
+      return false;
+    }
+
+    const matchesSelected = selTexts.some(st => st.includes(quote));
+    if (!matchesSelected) {
+      return false;
+    }
+
+    // If the quote matches an unselected block and the thread's summary/content does not belong to selected blocks,
+    // guard against accidental short-word collisions when unselected text has an exact block match
+    const exactUnselectedMatch = unselTexts.some(ut => ut === quote);
+    const exactSelectedMatch = selTexts.some(st => st === quote);
+    if (exactUnselectedMatch && !exactSelectedMatch) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+/**
  * Resolves the effective tab list and comment anchor mapping for a target tab ID.
  *
  * @param {Object} docJson Raw document resource from documents.get.
@@ -596,6 +1401,23 @@ function getEffectiveTabsAndAnchors_(docJson, targetTabId) {
   let hasTabAnchorMapping = false;
   let effectiveTabs = [];
 
+  const registerAnchorsContainer = anchorsContainer => {
+    if (!anchorsContainer || typeof anchorsContainer !== 'object') return;
+    hasTabAnchorMapping = true;
+    const anchors = Array.isArray(anchorsContainer)
+      ? anchorsContainer
+      : Object.values(anchorsContainer);
+    anchors.forEach(a => {
+      if (a && a.anchorId) {
+        tabAnchorMap.set(a.anchorId, normalizeAnchorRanges_(a));
+      }
+    });
+  };
+
+  if (docJson && docJson.commentAnchors) {
+    registerAnchorsContainer(docJson.commentAnchors);
+  }
+
   if (allTabs.length > 0) {
     const matchedTabs = targetTabId
       ? allTabs.filter(t => t.tabProperties && t.tabProperties.tabId === targetTabId)
@@ -604,15 +1426,7 @@ function getEffectiveTabsAndAnchors_(docJson, targetTabId) {
 
     effectiveTabs.forEach(t => {
       if (t.documentTab && t.documentTab.commentAnchors) {
-        hasTabAnchorMapping = true;
-        const anchors = Array.isArray(t.documentTab.commentAnchors)
-          ? t.documentTab.commentAnchors
-          : Object.values(t.documentTab.commentAnchors);
-        anchors.forEach(a => {
-          if (a && a.anchorId) {
-            tabAnchorMap.set(a.anchorId, a.ranges || []);
-          }
-        });
+        registerAnchorsContainer(t.documentTab.commentAnchors);
       }
     });
   }
@@ -860,12 +1674,17 @@ function extractCommentAndSuggestionThreads_(docJson, targetTabId, activeSuggest
         .filter(Boolean)
         .join(' | ');
 
+      const resolvedAnchorRanges = []
+        .concat(c.anchorId && tabAnchorMap.has(c.anchorId) ? tabAnchorMap.get(c.anchorId) : [])
+        .concat(normalizeAnchorRanges_(c.anchorRanges || c.ranges || c.range || (Number.isFinite(c.startIndex) ? [c] : [])));
+
       if (isResolved) {
         // Include resolved entry if it contains any comment text, reply, or suggestion summary
         if (!headContent && !quotedText && !summaryText && replies.length === 0) return;
         resolvedReviewsMap.set(commentId, {
           commentId: commentId,
           anchorId: c.anchorId || '',
+          anchorRanges: resolvedAnchorRanges,
           suggestionId: linkedSuggestionId,
           threadType: threadType,
           type: threadType,
@@ -886,6 +1705,7 @@ function extractCommentAndSuggestionThreads_(docJson, targetTabId, activeSuggest
         activeCommentsMap.set(commentId, {
           commentId: commentId,
           anchorId: c.anchorId || '',
+          anchorRanges: resolvedAnchorRanges,
           suggestionId: linkedSuggestionId,
           author: headAuthor,
           content: headContent,
@@ -1210,7 +2030,9 @@ function parseDocumentStructure_(docJson, options) {
         colsCount: structuralEl.table.columns || (rows[0] && rows[0].tableCells ? rows[0].tableCells.length : 0),
         markdown: tableMarkdown.trim(),
         startIndex: firstCellStartIndex,
-        endIndex: firstCellEndIndex
+        endIndex: firstCellEndIndex,
+        tableStartIndex: structuralEl.startIndex || firstCellStartIndex,
+        tableEndIndex: structuralEl.endIndex || firstCellEndIndex
       });
     }
   });
@@ -1226,6 +2048,9 @@ function parseDocumentStructure_(docJson, options) {
   let effectiveAnnotatedText = annotatedText;
   let selectionMinIndex = null;
   let selectionMaxIndex = null;
+  let selectionRanges = [];
+  let selectedTextsPool = [];
+  let unselectedTextsPool = [];
 
   if (opts.selectionOnly && Array.isArray(opts.selectionDescriptors) && opts.selectionDescriptors.length > 0) {
     const filteredBlocks = [];
@@ -1370,16 +2195,49 @@ function parseDocumentStructure_(docJson, options) {
     });
     effectiveAnnotatedText = scopedParts.join('\n\n');
 
-    // Compute min/max character index of the selected items to filter existing suggestions
+    // Compute exact selected coordinate intervals and min/max bounds
+    const rawSelectionIntervals = [];
     const rangeStarts = [];
     const rangeEnds = [];
-    targetEditableBlocks.forEach(b => { rangeStarts.push(b.startIndex); rangeEnds.push(b.endIndex); });
-    targetTablesList.forEach(t => { rangeStarts.push(t.startIndex); rangeEnds.push(t.endIndex); });
-    targetVisualElements.forEach(v => { rangeStarts.push(v.startIndex); rangeEnds.push(v.endIndex); });
+    targetEditableBlocks.forEach(b => {
+      rawSelectionIntervals.push({ startIndex: b.startIndex, endIndex: b.endIndex });
+      rangeStarts.push(b.startIndex);
+      rangeEnds.push(b.endIndex);
+      if (b.text) selectedTextsPool.push(b.text);
+    });
+    targetTablesList.forEach(t => {
+      const tStart = Number.isFinite(t.tableStartIndex) ? t.tableStartIndex : t.startIndex;
+      const tEnd = Number.isFinite(t.tableEndIndex) ? t.tableEndIndex : t.endIndex;
+      rawSelectionIntervals.push({ startIndex: tStart, endIndex: tEnd });
+      rangeStarts.push(tStart);
+      rangeEnds.push(tEnd);
+      if (t.markdown) selectedTextsPool.push(t.markdown);
+    });
+    targetVisualElements.forEach(v => {
+      rawSelectionIntervals.push({ startIndex: v.startIndex, endIndex: v.endIndex });
+      rangeStarts.push(v.startIndex);
+      rangeEnds.push(v.endIndex);
+      if (v.title) selectedTextsPool.push(v.title);
+      if (v.description) selectedTextsPool.push(v.description);
+    });
+    selectionRanges = normalizeAnchorRanges_(rawSelectionIntervals);
     if (rangeStarts.length > 0) {
       selectionMinIndex = Math.min.apply(null, rangeStarts);
       selectionMaxIndex = Math.max.apply(null, rangeEnds);
     }
+
+    // Build pool of unselected text strings for Fail-Closed quote disambiguation
+    allEditableBlocks.forEach(b => {
+      const bRange = [{ startIndex: b.startIndex, endIndex: Math.max(b.startIndex + 1, b.endIndex) }];
+      if (!rangesOverlap_(bRange, selectionRanges) && b.text) {
+        unselectedTextsPool.push(b.text);
+      }
+    });
+    allTablesList.forEach(t => {
+      if (!selectedTableNums.has(t.tableNumber) && t.markdown) {
+        unselectedTextsPool.push(t.markdown);
+      }
+    });
   } else {
     // Clean internal indexing metadata from blocks
     targetEditableBlocks = allEditableBlocks.map(b => ({
@@ -1392,8 +2250,8 @@ function parseDocumentStructure_(docJson, options) {
 
   const collectedIds = collectAllSuggestionAndCommentIds_(docJson, activeTabId);
   const extractedThreads = extractCommentAndSuggestionThreads_(docJson, activeTabId, collectedIds.suggestionIds);
-  const activeCommentsList = extractedThreads.activeComments;
-  const resolvedReviewsList = extractedThreads.resolvedReviews;
+  let activeCommentsList = extractedThreads.activeComments;
+  let resolvedReviewsList = extractedThreads.resolvedReviews;
 
   // Attach any suggestion-linked comment replies directly to their corresponding suggestion entry
   activeCommentsList.forEach(c => {
@@ -1409,22 +2267,58 @@ function parseDocumentStructure_(docJson, options) {
   (collectedIds.suggestionIds || []).forEach(sugId => {
     if (!existingSuggestionsMap[sugId]) {
       const linkedComments = activeCommentsList.filter(c => c.suggestionId === sugId);
+      const inferredRanges = [];
+      linkedComments.forEach(lc => {
+        if (Array.isArray(lc.anchorRanges)) {
+          inferredRanges.push(...lc.anchorRanges);
+        }
+      });
+      const firstRange = inferredRanges.length > 0 ? inferredRanges[0] : null;
       existingSuggestionsMap[sugId] = {
         id: sugId,
         deletedText: '',
         insertedText: '[Formatting / Structural Suggestion]',
-        startIndex: 1,
-        endIndex: 1,
+        startIndex: firstRange ? firstRange.startIndex : 1,
+        endIndex: firstRange ? firstRange.endIndex : 1,
         comments: linkedComments
       };
     }
   });
 
   let existingSuggestionsList = Object.values(existingSuggestionsMap);
-  if (opts.selectionOnly && selectionMinIndex !== null && selectionMaxIndex !== null) {
-    existingSuggestionsList = existingSuggestionsList.filter(
-      s => !(s.endIndex < selectionMinIndex || s.startIndex > selectionMaxIndex)
-    );
+  if (opts.selectionOnly) {
+    if (selectionRanges.length > 0) {
+      existingSuggestionsList = existingSuggestionsList.filter(s =>
+        rangesOverlap_(
+          [{ startIndex: s.startIndex, endIndex: Math.max(s.startIndex + 1, s.endIndex) }],
+          selectionRanges
+        )
+      );
+      activeCommentsList = filterReviewsBySelectionScope_(
+        activeCommentsList,
+        selectionRanges,
+        selectedTextsPool,
+        unselectedTextsPool,
+        existingSuggestionsMap
+      );
+      resolvedReviewsList = filterReviewsBySelectionScope_(
+        resolvedReviewsList,
+        selectionRanges,
+        selectedTextsPool,
+        unselectedTextsPool,
+        existingSuggestionsMap
+      );
+    } else if (selectionMinIndex !== null && selectionMaxIndex !== null) {
+      existingSuggestionsList = existingSuggestionsList.filter(
+        s => !(s.endIndex < selectionMinIndex || s.startIndex > selectionMaxIndex)
+      );
+      activeCommentsList = [];
+      resolvedReviewsList = [];
+    } else {
+      existingSuggestionsList = [];
+      activeCommentsList = [];
+      resolvedReviewsList = [];
+    }
   }
 
   const trimmedFullText = plainText.trim();
@@ -1447,6 +2341,7 @@ function parseDocumentStructure_(docJson, options) {
     activeTabId: activeTabId,
     activeTabTitle: activeTabTitle,
     selectionOnly: Boolean(opts.selectionOnly),
+    selectionRanges: selectionRanges,
     selectedTextPreview: selectedTextPreview,
     isEmpty: isEmpty,
     charCount: effectiveCharCount,
@@ -1647,36 +2542,84 @@ function generateInitialArticle(customPrompt, modelName, lang) {
 
   const apiKey = getRequiredApiKey_(isJa);
   const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
+  const doc = DocumentApp.getActiveDocument();
+  const docId = doc.getId();
+  const ragRuleFiles = resolveActiveRagRuleFiles_({ documentId: docId });
+  const hasRagRules = ragRuleFiles.length > 0;
 
-  const systemInstruction = isJa
+  let systemInstruction = isJa
     ? [
-        'あなたは優秀なライターです。ユーザーの指示（カスタムプロンプト）に基づき、Google Docsに挿入するための自然で読みやすい日本語の原稿を作成してください。',
+        'あなたは優秀なライター・技術エディターです。ユーザーの指示（カスタムプロンプト）に基づき、Google Docsに挿入するための自然で読みやすい日本語の原稿（または指定されたスクリプト・ドキュメント）を作成してください。',
         'マークダウン記法（# や ** など）は使わず、プレーンテキストの段落構成（段落間は改行）で出力してください。',
         '前置きや挨拶は一切含めず、原稿の本文のみを出力してください。'
       ].join('\n')
     : [
-        'You are an expert writer. Based on the user instruction (custom prompt), write a well-structured, natural draft suitable for insertion into Google Docs.',
+        'You are an expert writer and technical editor. Based on the user instruction (custom prompt), write a well-structured, natural draft (or requested script/document) suitable for insertion into Google Docs.',
         'Do not use Markdown formatting (such as # or **). Output plain text separated by paragraphs.',
         'Output only the body text of the draft without any conversational filler or intro.'
       ].join('\n');
+
+  if (hasRagRules) {
+    const ragListStr = ragRuleFiles.map((rf, i) => `- [RAG_RULE_${i + 1}] "${rf.title}"`).join('\n');
+    systemInstruction += isJa
+      ? `\n\n【重要：組織・プロジェクト固有のRAGルールブック参照】\n以下のルールファイルが添付されています。原稿・スクリプトを作成する際は、これらのファイルに定義された表記ルール・トーン＆マナー・コーディング規約・禁止表現を厳格に遵守してください：\n${ragListStr}`
+      : `\n\n[IMPORTANT: Grounding in Attached RAG Rulebook Files]\nThe following organization/project rule files are attached. When writing the draft or script, strictly adhere to the style rules, tone of voice, coding conventions, and terminology defined in these files:\n${ragListStr}`;
+  }
 
   const userPromptText = isJa
     ? `以下の内容・指示に従って原稿を作成してください：\n\n${customPrompt.trim()}`
     : `Please write a draft according to the following instructions:\n\n${customPrompt.trim()}`;
 
-  const payload = {
-    systemInstruction: { parts: [{ text: systemInstruction }] },
-    contents: [{ role: 'user', parts: [{ text: userPromptText }] }],
-    generationConfig: { temperature: 0.7 }
-  };
+  let uploadedFiles = [];
+  let generatedText = '';
 
-  const generatedText = callGeminiApiRaw_(model, apiKey, payload).trim();
+  try {
+    const userParts = [];
+    if (hasRagRules) {
+      uploadedFiles = uploadManuscriptAndVisualsToGeminiFiles_('', '', [], apiKey, ragRuleFiles);
+      const uploadedRagFiles = uploadedFiles.filter(uf => uf.kind === 'RAG_RULE');
+      if (uploadedRagFiles.length > 0) {
+        uploadedRagFiles.forEach(uf => {
+          userParts.push({
+            text: isJa
+              ? `[添付RAGルールファイル (${uf.targetId}: "${uf.title}")]`
+              : `[Attached RAG Rulebook File (${uf.targetId}: "${uf.title}")]`
+          });
+          userParts.push({
+            fileData: {
+              mimeType: uf.mimeType,
+              fileUri: uf.fileUri
+            }
+          });
+        });
+      } else {
+        ragRuleFiles.forEach((rf, idx) => {
+          userParts.push({
+            text: `[RAG_RULE_${idx + 1}: "${rf.title}"]\n${rf.content}`
+          });
+        });
+      }
+    }
+
+    userParts.push({ text: userPromptText });
+
+    const payload = {
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ role: 'user', parts: userParts }],
+      generationConfig: { temperature: 0.7 }
+    };
+
+    generatedText = callGeminiApiRaw_(model, apiKey, payload).trim();
+  } finally {
+    if (uploadedFiles.length > 0) {
+      deleteGeminiFiles_(uploadedFiles, apiKey);
+    }
+  }
+
   if (!generatedText) {
     throw new Error(isJa ? 'AIから文章が生成されませんでした。' : 'Failed to generate text from AI.');
   }
 
-  const doc = DocumentApp.getActiveDocument();
-  const docId = doc.getId();
   const tabInfo = getActiveTabInfo_(doc);
 
   const locationObj = { index: 1 };
@@ -1702,7 +2645,13 @@ function generateInitialArticle(customPrompt, modelName, lang) {
     success: true,
     generatedText: generatedText,
     modelUsed: model,
-    charCount: generatedText.length
+    charCount: generatedText.length,
+    ragFilesUsed: ragRuleFiles.map(rf => ({
+      id: rf.id,
+      title: rf.title,
+      sourceType: rf.sourceType,
+      charCount: rf.charCount
+    }))
   };
 }
 
@@ -1713,29 +2662,164 @@ function generateInitialArticle(customPrompt, modelName, lang) {
  */
 
 /**
- * Shared helper that uploads the manuscript Markdown file and any embedded visual images
- * in parallel to the Gemini File API, executes structured JSON generation, and guarantees
- * immediate File API cleanup in the `finally` block.
+ * Defense-in-depth scope boundary enforcement on `docData` prior to Step 2 prompt
+ * construction and File API upload. Guarantees that when `docData.selectionOnly` is true,
+ * any out-of-selection active suggestions, active comments, or resolved review history
+ * items are stripped even if `docData` was constructed or mutated outside Step 1.
+ *
+ * @param {Object} docData Parsed document structure.
+ * @return {Object} Shallow-copied `docData` with strictly scoped review arrays.
+ */
+function enforceSelectionScopeOnDocData_(docData) {
+  if (!docData || typeof docData !== 'object' || !docData.selectionOnly) {
+    return docData;
+  }
+
+  const rawIntervals = [];
+  const selectedTextsPool = [];
+  if (Array.isArray(docData.selectionRanges) && docData.selectionRanges.length > 0) {
+    rawIntervals.push(...docData.selectionRanges);
+  }
+  (docData.editableBlocks || []).forEach(b => {
+    if (Number.isFinite(b.startIndex) && Number.isFinite(b.endIndex)) {
+      rawIntervals.push({ startIndex: b.startIndex, endIndex: b.endIndex });
+    }
+    if (b.text) selectedTextsPool.push(b.text);
+  });
+  (docData.tables || []).forEach(t => {
+    const tStart = Number.isFinite(t.tableStartIndex) ? t.tableStartIndex : t.startIndex;
+    const tEnd = Number.isFinite(t.tableEndIndex) ? t.tableEndIndex : t.endIndex;
+    if (Number.isFinite(tStart) && Number.isFinite(tEnd)) {
+      rawIntervals.push({ startIndex: tStart, endIndex: tEnd });
+    }
+    if (t.markdown) selectedTextsPool.push(t.markdown);
+  });
+  (docData.visualElements || []).forEach(v => {
+    if (Number.isFinite(v.startIndex) && Number.isFinite(v.endIndex)) {
+      rawIntervals.push({ startIndex: v.startIndex, endIndex: v.endIndex });
+    }
+    if (v.title) selectedTextsPool.push(v.title);
+    if (v.description) selectedTextsPool.push(v.description);
+  });
+  if (docData.selectedTextPreview) {
+    selectedTextsPool.push(docData.selectedTextPreview);
+  }
+
+  const selectionRanges = normalizeAnchorRanges_(rawIntervals);
+  const sugMap = {};
+  (docData.existingSuggestions || []).forEach(s => {
+    if (s && s.id) sugMap[s.id] = s;
+  });
+
+  const scopedSuggestions = selectionRanges.length > 0
+    ? (docData.existingSuggestions || []).filter(s =>
+        rangesOverlap_(
+          [{ startIndex: s.startIndex, endIndex: Math.max((s.startIndex || 0) + 1, s.endIndex || 0) }],
+          selectionRanges
+        )
+      )
+    : [];
+
+  const scopedComments = filterReviewsBySelectionScope_(
+    docData.existingComments || [],
+    selectionRanges,
+    selectedTextsPool,
+    [],
+    sugMap
+  );
+
+  const scopedResolved = filterReviewsBySelectionScope_(
+    docData.resolvedReviews || [],
+    selectionRanges,
+    selectedTextsPool,
+    [],
+    sugMap
+  );
+
+  return Object.assign({}, docData, {
+    selectionRanges: selectionRanges,
+    existingSuggestions: scopedSuggestions,
+    existingComments: scopedComments,
+    resolvedReviews: scopedResolved
+  });
+}
+
+/**
+ * Resolves the active Google Drive RAG rule files (including text content) for Step 2.
+ * Uses pre-loaded `docData.ragRuleFiles` if provided (e.g., in tests), or fetches full
+ * text content from the configured Google Drive RAG folder via `fetchRagRuleFilesFromDrive_`.
+ *
+ * @param {Object=} docData Optional document data object containing `documentId` or `ragRuleFiles`.
+ * @return {Array<Object>} List of RAG rule file objects with `content`.
+ */
+function resolveActiveRagRuleFiles_(docData) {
+  if (docData && Array.isArray(docData.ragRuleFiles)) {
+    return docData.ragRuleFiles.filter(rf => rf && typeof rf.content === 'string' && rf.content.trim().length > 0);
+  }
+  const ragInfo = getEffectiveRagFolderInfo_();
+  if (!ragInfo.hasRagFolder || !ragInfo.folderId) {
+    return [];
+  }
+  let currentDocId = docData && docData.documentId ? docData.documentId : '';
+  if (!currentDocId) {
+    try {
+      currentDocId = DocumentApp.getActiveDocument().getId();
+    } catch (e) {}
+  }
+  return fetchRagRuleFilesFromDrive_(ragInfo.folderId, currentDocId, true);
+}
+
+/**
+ * Shared helper that uploads the manuscript Markdown file, any embedded visual images,
+ * and any Google Drive RAG rule files in parallel to the Gemini File API, executes
+ * structured JSON generation, and guarantees immediate File API cleanup in the `finally` block.
  *
  * @param {string} model Selected Gemini model identifier.
  * @param {string} apiKey Gemini API key.
  * @param {Object} promptData { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
  * @param {Array<Object>} visualElements Visual elements to upload alongside the manuscript.
  * @param {string} manuscriptLabelPrefix Label prefix for the attached manuscript file part.
+ * @param {Array<Object>=} ragRuleFiles Optional RAG rule files fetched from Google Drive.
  * @return {Object} Parsed JSON response from Gemini.
  */
-function executeMultimodalJsonGeneration_(model, apiKey, promptData, visualElements, manuscriptLabelPrefix) {
+function executeMultimodalJsonGeneration_(model, apiKey, promptData, visualElements, manuscriptLabelPrefix, ragRuleFiles) {
   const userParts = [];
   let uploadedFiles = [];
+  const activeRagFiles = Array.isArray(ragRuleFiles) ? ragRuleFiles : [];
 
   try {
     uploadedFiles = uploadManuscriptAndVisualsToGeminiFiles_(
       promptData.manuscriptFileContent,
       promptData.manuscriptFileName,
       visualElements,
-      apiKey
+      apiKey,
+      activeRagFiles
     );
 
+    // 1. Attach RAG Rulebook files first so Gemini grounds its review in those rules
+    const uploadedRagFiles = uploadedFiles.filter(uf => uf.kind === 'RAG_RULE');
+    if (uploadedRagFiles.length > 0) {
+      uploadedRagFiles.forEach(uf => {
+        userParts.push({
+          text: `[Attached RAG Rulebook File for ${uf.targetId} (${uf.type}: "${uf.title}")]`
+        });
+        userParts.push({
+          fileData: {
+            mimeType: uf.mimeType,
+            fileUri: uf.fileUri
+          }
+        });
+      });
+    } else if (activeRagFiles.length > 0) {
+      // Fallback to inline content if File API upload for RAG rules is unavailable
+      activeRagFiles.forEach((rf, idx) => {
+        userParts.push({
+          text: `[Attached RAG Rulebook File (RAG_RULE_${idx + 1}: "${rf.title}")]\n${rf.content}`
+        });
+      });
+    }
+
+    // 2. Attach Manuscript Context Markdown file
     const manuscriptFile = uploadedFiles.find(uf => uf.kind === 'MANUSCRIPT');
     if (manuscriptFile) {
       userParts.push({
@@ -1752,6 +2836,7 @@ function executeMultimodalJsonGeneration_(model, apiKey, promptData, visualEleme
       userParts.push({ text: promptData.manuscriptFileContent });
     }
 
+    // 3. Attach Visual Figure/Chart files
     uploadedFiles
       .filter(uf => uf.kind === 'VISUAL')
       .forEach(uf => {
@@ -1813,21 +2898,37 @@ function step2_generateProofreading(docData, customPrompt, modelName, lang, hint
     );
   }
 
+  const scopedDocData = enforceSelectionScopeOnDocData_(docData);
   const apiKey = getRequiredApiKey_(isJa);
   const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
-  const promptData = buildProofreadingPromptAndSchema_(docData, customPrompt, isJa, isHintOnly, isIncludeResolved);
+  const ragRuleFiles = resolveActiveRagRuleFiles_(scopedDocData);
+  const promptData = buildProofreadingPromptAndSchema_(
+    scopedDocData,
+    customPrompt,
+    isJa,
+    isHintOnly,
+    isIncludeResolved,
+    ragRuleFiles
+  );
 
   const parsedResult = executeMultimodalJsonGeneration_(
     model,
     apiKey,
     promptData,
-    docData.visualElements,
-    isJa ? '添付原稿ファイル' : 'Attached Manuscript File'
+    scopedDocData.visualElements,
+    isJa ? '添付原稿ファイル' : 'Attached Manuscript File',
+    ragRuleFiles
   );
 
   return {
     modelUsed: model,
     hintOnly: isHintOnly,
+    ragFilesUsed: ragRuleFiles.map(rf => ({
+      id: rf.id,
+      title: rf.title,
+      sourceType: rf.sourceType,
+      charCount: rf.charCount
+    })),
     overallFeedback: parsedResult.overallFeedback || '',
     learningSummary: parsedResult.learningSummary || {
       revisionsDigest: '',
@@ -1864,39 +2965,58 @@ function step2_generateLearningSummaryFromExisting(docData, customPrompt, modelN
     );
   }
 
-  const existingSuggestions = Array.isArray(docData.existingSuggestions) ? docData.existingSuggestions : [];
-  const existingComments = Array.isArray(docData.existingComments) ? docData.existingComments : [];
-  const allResolvedReviews = Array.isArray(docData.resolvedReviews) ? docData.resolvedReviews : [];
+  const scopedDocData = enforceSelectionScopeOnDocData_(docData);
+  const existingSuggestions = Array.isArray(scopedDocData.existingSuggestions) ? scopedDocData.existingSuggestions : [];
+  const existingComments = Array.isArray(scopedDocData.existingComments) ? scopedDocData.existingComments : [];
+  const allResolvedReviews = Array.isArray(scopedDocData.resolvedReviews) ? scopedDocData.resolvedReviews : [];
   const resolvedReviews = isIncludeResolved ? allResolvedReviews : [];
 
   if (existingSuggestions.length === 0 && existingComments.length === 0 && resolvedReviews.length === 0) {
     if (!isIncludeResolved && allResolvedReviews.length > 0) {
       throw new Error(isJa
-        ? `未解決の提案・コメントはありませんが、解決済みのレビュー履歴が ${allResolvedReviews.length} 件存在します。「📜 解決済みの提案・コメント履歴も含める」スイッチをオンにして実行してください。`
-        : `No active (unresolved) suggestions or comments were found, but ${allResolvedReviews.length} resolved review item(s) exist in the document history. Please turn ON "📜 Include Resolved Review History" to generate a Learning Summary from resolved items.`
+        ? `対象範囲内に未解決の提案・コメントはありませんが、解決済みのレビュー履歴が ${allResolvedReviews.length} 件存在します。「📜 解決済み履歴も含める」スイッチをオンにして実行してください。`
+        : `No active (unresolved) suggestions or comments were found in scope, but ${allResolvedReviews.length} resolved review item(s) exist in scope. Please turn ON "📜 Include Resolved History" to generate a Learning Summary from resolved items.`
       );
     }
     throw new Error(isJa
-      ? 'アクティブなタブ内に提案（サジェスト）やコメント（解決済み履歴を含む）が見つかりませんでした。他のユーザーからの提案・コメントが含まれるドキュメントで実行するか、先に「🚀 推敲を実行」を押してください。'
-      : 'No suggestions or comments (active or resolved) were found in the active tab. Please run this on a document containing suggestions or comments from reviewers, or click "🚀 Run Proofreading" first.'
+      ? (scopedDocData.selectionOnly
+          ? '選択された範囲内に提案（サジェスト）やコメント（解決済み履歴を含む）が見つかりませんでした。'
+          : 'アクティブなタブ内に提案（サジェスト）やコメント（解決済み履歴を含む）が見つかりませんでした。他のユーザーからの提案・コメントが含まれるドキュメントで実行するか、先に「🚀 推敲を実行」を押してください。')
+      : (scopedDocData.selectionOnly
+          ? 'No suggestions or comments (active or resolved) were found within your selected range.'
+          : 'No suggestions or comments (active or resolved) were found in the active tab. Please run this on a document containing suggestions or comments from reviewers, or click "🚀 Run Proofreading" first.')
     );
   }
 
   const apiKey = getRequiredApiKey_(isJa);
   const model = ALLOWED_MODELS.includes(modelName) ? modelName : DEFAULT_MODEL;
-  const promptData = buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa, isIncludeResolved);
+  const ragRuleFiles = resolveActiveRagRuleFiles_(scopedDocData);
+  const promptData = buildExistingLearningSummaryPromptAndSchema_(
+    scopedDocData,
+    customPrompt,
+    isJa,
+    isIncludeResolved,
+    ragRuleFiles
+  );
 
   const parsedResult = executeMultimodalJsonGeneration_(
     model,
     apiKey,
     promptData,
-    docData.visualElements,
-    isJa ? '添付原稿・既存レビュー履歴一覧ファイル' : 'Attached Manuscript & Review History File'
+    scopedDocData.visualElements,
+    isJa ? '添付原稿・既存レビュー履歴一覧ファイル' : 'Attached Manuscript & Review History File',
+    ragRuleFiles
   );
 
   return {
     sourceMode: 'existing',
     modelUsed: model,
+    ragFilesUsed: ragRuleFiles.map(rf => ({
+      id: rf.id,
+      title: rf.title,
+      sourceType: rf.sourceType,
+      charCount: rf.charCount
+    })),
     analyzedSuggestionsCount: existingSuggestions.length,
     analyzedCommentsCount: existingComments.length,
     analyzedResolvedCount: resolvedReviews.length,
@@ -1942,15 +3062,19 @@ function formatResolvedReviewLine_(r, idx) {
  * @param {string} customPrompt Optional user instruction.
  * @param {boolean} isJa True if Japanese UI mode.
  * @param {boolean=} includeResolved Whether to include resolved review history.
+ * @param {Array<Object>=} ragRuleFiles Optional Google Drive RAG rule files.
  * @return {Object} { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
  */
-function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa, includeResolved) {
-  const existingSuggestions = Array.isArray(docData.existingSuggestions) ? docData.existingSuggestions : [];
-  const existingComments = Array.isArray(docData.existingComments) ? docData.existingComments : [];
-  const resolvedReviews = includeResolved && Array.isArray(docData.resolvedReviews) ? docData.resolvedReviews : [];
-  const hasTables = docData.tables && docData.tables.length > 0;
-  const hasVisuals = docData.visualElements && docData.visualElements.length > 0;
-  const isSelectionOnly = Boolean(docData.selectionOnly);
+function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJa, includeResolved, ragRuleFiles) {
+  const scopedDocData = enforceSelectionScopeOnDocData_(docData);
+  const existingSuggestions = Array.isArray(scopedDocData.existingSuggestions) ? scopedDocData.existingSuggestions : [];
+  const existingComments = Array.isArray(scopedDocData.existingComments) ? scopedDocData.existingComments : [];
+  const resolvedReviews = includeResolved && Array.isArray(scopedDocData.resolvedReviews) ? scopedDocData.resolvedReviews : [];
+  const hasTables = scopedDocData.tables && scopedDocData.tables.length > 0;
+  const hasVisuals = scopedDocData.visualElements && scopedDocData.visualElements.length > 0;
+  const activeRagFiles = Array.isArray(ragRuleFiles) ? ragRuleFiles : [];
+  const hasRagRules = activeRagFiles.length > 0;
+  const isSelectionOnly = Boolean(scopedDocData.selectionOnly);
   const manuscriptFileName = isSelectionOnly ? 'selected_reviews_context.md' : 'manuscript_reviews_context.md';
 
   const formatSuggestionLine = (s, idx) => {
@@ -1996,11 +3120,11 @@ function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJ
     : (isJa ? 'なし' : 'None');
 
   const tablesContext = hasTables
-    ? docData.tables.map(t => `${t.targetId} (${t.rowsCount}x${t.colsCount}):\n${t.markdown}`).join('\n\n')
+    ? scopedDocData.tables.map(t => `${t.targetId} (${t.rowsCount}x${t.colsCount}):\n${t.markdown}`).join('\n\n')
     : (isJa ? 'なし' : 'None');
 
   const visualsContext = hasVisuals
-    ? docData.visualElements.map(v => `- ${v.targetId}: Type=${v.type}, Title="${v.title}", Description="${v.description}"`).join('\n')
+    ? scopedDocData.visualElements.map(v => `- ${v.targetId}: Type=${v.type}, Title="${v.title}", Description="${v.description}"`).join('\n')
     : (isJa ? 'なし' : 'None');
 
   if (isJa) {
@@ -2017,6 +3141,14 @@ function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJ
    - actionableTips（今後の執筆に向けた学習アドバイス）: 指摘事項を踏まえ、次回からの執筆で意識すべき実践的な改善アクション
 4. さらに、サイドバーのダッシュボード上で個別の提案・コメント（解決済み履歴を含む）の学びを確認できるよう、主要な項目の解説リスト（analyzedItems）も出力してください。`;
 
+    if (hasRagRules) {
+      const ragListStr = activeRagFiles.map((rf, i) => `- [RAG_RULE_${i + 1}] "${rf.title}"`).join('\n');
+      systemPrompt += `\n\n【最重要：組織・プロジェクト固有のRAGルールブックに基づく分析】
+Google Driveから取得された以下のルールファイル（計 ${activeRagFiles.length} 件）が添付されています：
+${ragListStr}
+既存の提案・コメント・解決済み履歴を分析する際は、これらのRAGルールファイル（表記ガイドライン、コーディング規約、トーン＆マナー、禁止用語等）を権威ある基準（RAG）として参照し、どのルールに照らして改善が行われたか、また今後どのルールを意識すべきかを learningSummary および analyzedItems に具体的に反映してください。`;
+    }
+
     if (customPrompt && customPrompt.trim()) {
       systemPrompt += `\n\n【ユーザーからの追加指示（カスタムプロンプト）】
 以下の指示を分析および学習アドバイス作成時の最優先事項として反映してください：
@@ -2024,7 +3156,7 @@ function buildExistingLearningSummaryPromptAndSchema_(docData, customPrompt, isJ
     }
 
     const manuscriptFileContent = `# 対象原稿コンテキスト（インライン提案マーカー・表・図注釈付き）
-${docData.annotatedText}
+${scopedDocData.annotatedText}
 
 # 未解決（アクティブ）のインライン修正提案一覧（計 ${existingSuggestions.length} 件）
 ${suggestionsContext}
@@ -2041,7 +3173,7 @@ ${tablesContext}
 # 対象の図・チャート一覧
 ${visualsContext}`;
 
-    const userMessage = `添付された原稿・レビュー履歴一覧ファイル（${manuscriptFileName}）および添付画像（存在する場合）を詳細に分析し、指定されたJSONスキーマに従って「執筆者への学習アドバイスまとめ（learningSummary）」および個別解説リスト（analyzedItems）を出力してください。`;
+    const userMessage = `添付された${hasRagRules ? `RAGルールブックファイル（計 ${activeRagFiles.length} 件）および` : ''}原稿・レビュー履歴一覧ファイル（${manuscriptFileName}）、添付画像（存在する場合）を詳細に分析し、指定されたJSONスキーマに従って「執筆者への学習アドバイスまとめ（learningSummary）」および個別解説リスト（analyzedItems）を出力してください。`;
 
     const responseSchema = {
       type: 'OBJECT',
@@ -2116,6 +3248,14 @@ Your task is to deeply analyze the active inline suggestions, active comment thr
    - actionableTips (Actionable Advice for Future Writing): Practical, concrete takeaways the author can apply in future writing based on this feedback.
 4. Also provide "analyzedItems" summarizing the key individual suggestions and comments (including resolved history items) with their rationale and learning points for the sidebar dashboard.`;
 
+  if (hasRagRules) {
+    const ragListStr = activeRagFiles.map((rf, i) => `- [RAG_RULE_${i + 1}] "${rf.title}"`).join('\n');
+    systemPrompt += `\n\n[CRITICAL: Grounding in Attached RAG Rulebook Files (Google Drive)]
+The following ${activeRagFiles.length} organization/project rule file(s) from Google Drive are attached:
+${ragListStr}
+Use these attached RAG rulebook files (style guides, coding conventions, tone-of-voice rules, or forbidden terminology) as authoritative grounding when analyzing the active and resolved reviews, and explicitly reference the relevant guidelines in "learningSummary" and "analyzedItems".`;
+  }
+
   if (customPrompt && customPrompt.trim()) {
     systemPrompt += `\n\n[Additional Instructions from User (Custom Prompt)]
 Incorporate the following instructions as high-priority criteria when analyzing the suggestions/comments and crafting the learning summary:
@@ -2123,7 +3263,7 @@ Incorporate the following instructions as high-priority criteria when analyzing 
   }
 
   const manuscriptFileContent = `# Target Manuscript Context (with inline suggestion markers, table markdown, and visual markers)
-${docData.annotatedText}
+${scopedDocData.annotatedText}
 
 # Active (Unresolved) Inline Suggestions in Scope (Total: ${existingSuggestions.length})
 ${suggestionsContext}
@@ -2140,7 +3280,7 @@ ${tablesContext}
 # Figures & Charts in Scope
 ${visualsContext}`;
 
-  const userMessage = `Please analyze the attached manuscript and review history Markdown file (${manuscriptFileName}) along with any attached figure images, and generate the "Writing Coach & Learning Summary" and "analyzedItems" adhering strictly to the response JSON schema.`;
+  const userMessage = `Please analyze the attached ${hasRagRules ? `RAG rulebook file(s) (${activeRagFiles.length} file(s)) and the ` : ''}manuscript and review history Markdown file (${manuscriptFileName}) along with any attached figure images, and generate the "Writing Coach & Learning Summary" and "analyzedItems" adhering strictly to the response JSON schema.`;
 
   const responseSchema = {
     type: 'OBJECT',
@@ -2206,22 +3346,27 @@ ${visualsContext}`;
  * and structured JSON schema for Step 2, enforcing strict 100% single-language output ('ja' or 'en')
  * and generating the comprehensive author learning summary.
  * Supports both Standard Suggestion Mode (`WriteMode.SUGGEST`) and Hint-Only Mode (`insertComment`),
- * as well as optional inclusion of resolved review history for continuity across iterative drafts.
+ * optional inclusion of resolved review history for continuity across iterative drafts, and
+ * enterprise/project RAG rulebook files loaded from Google Drive.
  *
  * @param {Object} docData Parsed document structure from Step 1.
  * @param {string} customPrompt Optional user instruction.
  * @param {boolean} isJa True if Japanese UI mode, false if English UI mode.
  * @param {boolean=} hintOnly Whether Hint-Only Mode is enabled.
  * @param {boolean=} includeResolved Whether to include resolved review history in context.
+ * @param {Array<Object>=} ragRuleFiles Optional Google Drive RAG rule files.
  * @return {Object} { systemPrompt, manuscriptFileName, manuscriptFileContent, userMessage, responseSchema }
  */
-function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa, hintOnly, includeResolved) {
-  const hasExisting = docData.existingSuggestions && docData.existingSuggestions.length > 0;
-  const resolvedList = includeResolved && Array.isArray(docData.resolvedReviews) ? docData.resolvedReviews : [];
+function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa, hintOnly, includeResolved, ragRuleFiles) {
+  const scopedDocData = enforceSelectionScopeOnDocData_(docData);
+  const hasExisting = scopedDocData.existingSuggestions && scopedDocData.existingSuggestions.length > 0;
+  const resolvedList = includeResolved && Array.isArray(scopedDocData.resolvedReviews) ? scopedDocData.resolvedReviews : [];
   const hasResolved = resolvedList.length > 0;
-  const hasTables = docData.tables && docData.tables.length > 0;
-  const hasVisuals = docData.visualElements && docData.visualElements.length > 0;
-  const isSelectionOnly = Boolean(docData.selectionOnly);
+  const hasTables = scopedDocData.tables && scopedDocData.tables.length > 0;
+  const hasVisuals = scopedDocData.visualElements && scopedDocData.visualElements.length > 0;
+  const activeRagFiles = Array.isArray(ragRuleFiles) ? ragRuleFiles : [];
+  const hasRagRules = activeRagFiles.length > 0;
+  const isSelectionOnly = Boolean(scopedDocData.selectionOnly);
   const isHintOnly = Boolean(hintOnly);
   const manuscriptFileName = isSelectionOnly ? 'selected_excerpt.md' : 'manuscript_context.md';
 
@@ -2239,11 +3384,20 @@ function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa, hintOnly
    - weakPointsAndHabits（苦手なところ・修正すべき傾向）: 原稿から見受けられるユーザーの文章・構成・図表表現上のクセや弱点、注意すべきポイント
    - actionableTips（今後の執筆に向けた学習アドバイス）: 次回からの執筆で意識すべき実践的でシンプルな改善アクション`;
 
+    if (hasRagRules) {
+      const ragListStr = activeRagFiles.map((rf, i) => `- [RAG_RULE_${i + 1}] "${rf.title}"`).join('\n');
+      systemPrompt += `\n\n【最重要：Google Drive RAGルールブック（組織・プロジェクト規約）の厳格適用】
+以下の組織・プロジェクト固有ルールファイル（計 ${activeRagFiles.length} 件）がRAGコンテキストとして添付されています：
+${ragListStr}
+原稿（文章またはプログラムコード・スクリプト）を推敲・レビューする際は、一般的なWeb上の基準よりも**添付されたRAGルールファイル内の規定（用語集、表記統一ルール、トーン＆マナー、禁止表現、設計規約、コーディング規約等）を最優先の根拠（Authoritative Source of Truth）として適用**してください。
+RAGルールに基づく修正提案やコメントを行う場合は、reason（理由）や learningPoint（学習ポイント）に**どのルールファイル（例: "${activeRagFiles[0].title}"）のどの指針に基づく指摘か**を明記してください。`;
+    }
+
     if (isHintOnly) {
       systemPrompt += `\n\n【重要：💡 ヒントのみ表示モード（Hint-Only Mode / 自力推敲コーチング）】
 現在「ヒントのみ表示モード」が有効です。ドキュメント上には直接の書き換え提案（WriteMode.SUGGEST）を行わず、該当フレーズ（originalText）に対して**理由（reason）と自力修正のヒント（learningPoint）のみをコメント（insertComment）として付与**し、執筆者自身が自分の頭で考えて文章を書き直す学習体験を提供します。
 そのため、各 suggestions 項目では以下を徹底してください：
-- reason: そのフレーズ（originalText）のどこにどのような問題・違和感・論理の飛躍・文法ミスがあるのかを明確に指摘してください（ここに完成した書き換え文そのものを書かないでください）。
+- reason: そのフレーズ（originalText）のどこにどのような問題・違和感・論理の飛躍・文法ミス・またはRAGルール違反があるのかを明確に指摘してください（ここに完成した書き換え文そのものを書かないでください）。
 - learningPoint: 執筆者が**自分の力で書き直すための具体的な着眼点・思考のヒント・改善の方向性**を提示してください（答えの文を丸写しさせるのではなく、「どの語を削るべきか」「主語と述語をどう対応させるか」といった自力推敲のヒントにしてください）。
 - suggestedText: サイドバーの「参考解答を見る」折りたたみ表示用に、模範となる修正後のテキストを設定してください。`;
     }
@@ -2256,13 +3410,13 @@ function buildProofreadingPromptAndSchema_(docData, customPrompt, isJa, hintOnly
     if (hasExisting) {
       systemPrompt += `\n\n【重要：既存の未解決提案への配慮】
 対象範囲には既に以下の修正案が提案されています：
-${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}): 削除="${s.deletedText.replace(/\n/g, '')}" ➔ 挿入="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
+${scopedDocData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}): 削除="${s.deletedText.replace(/\n/g, '')}" ➔ 挿入="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
 これらの提案済みの修正案を考慮したうえで、まだ提案が掛かっていない確定済みテキストや表・図・チャートに対して追加の提案を行ってください。`;
     }
 
     if (hasResolved) {
       systemPrompt += `\n\n【参考：ドキュメント内の解決済みレビュー履歴】
-添付ファイルには、過去に承認・却下または解決されたレビュー履歴（計 ${resolvedList.length} 件）も記載されています。既に解決された箇所を元の誤った表現に戻すような矛盾した提案は避け、執筆者のこれまでの改善履歴も踏まえてコーチングを行ってください。`;
+添付ファイルには、対象範囲内で過去に承認・却下または解決されたレビュー履歴（計 ${resolvedList.length} 件）も記載されています。既に解決された箇所を元の誤った表現に戻すような矛盾した提案は避け、執筆者のこれまでの改善履歴も踏まえてコーチングを行ってください。`;
     }
 
     if (customPrompt && customPrompt.trim()) {
@@ -2271,21 +3425,21 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
 「${customPrompt.trim()}」`;
     }
 
-    const blocksContext = docData.editableBlocks.length > 0
-      ? docData.editableBlocks.map((b, i) => `[ブロック${i + 1} (${b.source === 'table' ? '表セル内' : '本文'})] "${b.text}"`).join('\n')
+    const blocksContext = scopedDocData.editableBlocks.length > 0
+      ? scopedDocData.editableBlocks.map((b, i) => `[ブロック${i + 1} (${b.source === 'table' ? '表セル内' : '本文'})] "${b.text}"`).join('\n')
       : 'なし';
 
     const tablesContext = hasTables
-      ? docData.tables.map(t => `${t.targetId} (${t.rowsCount}行 x ${t.colsCount}列):\n${t.markdown}`).join('\n\n')
+      ? scopedDocData.tables.map(t => `${t.targetId} (${t.rowsCount}行 x ${t.colsCount}列):\n${t.markdown}`).join('\n\n')
       : 'なし';
 
     const visualsContext = hasVisuals
-      ? docData.visualElements.map(v => `- ${v.targetId}: 種別=${v.type}, タイトル="${v.title}", 説明="${v.description}"`).join('\n')
+      ? scopedDocData.visualElements.map(v => `- ${v.targetId}: 種別=${v.type}, タイトル="${v.title}", 説明="${v.description}"`).join('\n')
       : 'なし';
 
     const manuscriptSections = [];
     if (!isSelectionOnly && (hasTables || hasVisuals || hasExisting)) {
-      manuscriptSections.push(`# 原稿全体の構造・配置コンテキスト（注釈付き）\n${docData.annotatedText}`);
+      manuscriptSections.push(`# 原稿全体の構造・配置コンテキスト（注釈付き）\n${scopedDocData.annotatedText}`);
     }
     manuscriptSections.push(`# 推敲対象の確定済みテキストブロック一覧\n（suggestions の originalText は必ずこの中の文字列から完全一致で抜き出してください）\n${blocksContext}`);
     if (hasTables) {
@@ -2299,7 +3453,7 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
     }
 
     const manuscriptFileContent = manuscriptSections.join('\n\n');
-    const userMessage = `添付された原稿Markdownファイル（${manuscriptFileName}）および添付された図表画像ファイル（存在する場合）を読み取り、推敲提案（suggestions）、図表への推敲コメント（elementSuggestions）、および執筆者への学習アドバイスまとめ（learningSummary）を指定されたJSONスキーマに従って出力してください。`;
+    const userMessage = `添付された${hasRagRules ? `RAGルールブックファイル（計 ${activeRagFiles.length} 件）をルール基準として参照し、` : ''}原稿Markdownファイル（${manuscriptFileName}）および添付された図表画像ファイル（存在する場合）を読み取り、推敲提案（suggestions）、図表への推敲コメント（elementSuggestions）、および執筆者への学習アドバイスまとめ（learningSummary）を指定されたJSONスキーマに従って出力してください。`;
 
     const responseSchema = {
       type: 'OBJECT',
@@ -2329,7 +3483,7 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
         },
         existingSuggestionsNote: {
           type: 'STRING',
-          description: '既存の提案や解決済み履歴がある場合、それをどう考慮したかの説明（無い場合は空文字列・日本語）'
+          description: '既存の提案や解決済み履歴、RAGルールがある場合、それをどう考慮したかの説明（無い場合は空文字列・日本語）'
         },
         suggestions: {
           type: 'ARRAY',
@@ -2347,7 +3501,7 @@ ${docData.existingSuggestions.map((s, idx) => `- 提案${idx + 1} (ID: ${s.id}):
               },
               category: {
                 type: 'STRING',
-                description: '修正カテゴリ（日本語。例: 論理・明確化, 表データ表現, 語彙・表現, 簡潔化, 文法・語法）'
+                description: '修正カテゴリ（日本語。例: RAG規約準拠, 論理・明確化, 表データ表現, 語彙・表現, 簡潔化, 文法・語法）'
               },
               reason: {
                 type: 'STRING',
@@ -2416,11 +3570,20 @@ Your task is to comprehensively understand the manuscript content in the attache
    - weakPointsAndHabits (Areas for Improvement & Writing Habits): Patterns, recurring weaknesses, or tendencies observed in the author's draft and visual presentation that needed revision.
    - actionableTips (Future Learning Advice): Simple, practical takeaways the author can apply to improve their future writing.`;
 
+  if (hasRagRules) {
+    const ragListStr = activeRagFiles.map((rf, i) => `- [RAG_RULE_${i + 1}] "${rf.title}"`).join('\n');
+    systemPrompt += `\n\n[CRITICAL: Enterprise / Project Grounding via Attached Google Drive RAG Rulebook Files]
+The following ${activeRagFiles.length} reference rulebook file(s) from Google Drive are attached as RAG context:
+${ragListStr}
+When proofreading prose or reviewing source code/scripts, you MUST treat these attached RAG rulebook files (e.g., style guides, corporate tone-of-voice rules, forbidden terminology, design docs, or coding standards) as the **authoritative source of truth** taking precedence over generic web conventions.
+Whenever a suggestion or review comment is anchored in a rule from these files, explicitly cite the rulebook file name (e.g., "${activeRagFiles[0].title}") and the specific guideline in "reason" and "learningPoint".`;
+  }
+
   if (isHintOnly) {
     systemPrompt += `\n\n[IMPORTANT: 💡 Hint-Only Mode (Self-Revision Coaching Without Spoiling the Rewrite)]
 "Hint-Only Mode" is currently enabled. In the Google Document, instead of applying inline text replacements (WriteMode.SUGGEST), your feedback on each flagged phrase ("originalText") will be anchored as a **Google Docs Comment (insertComment) showing ONLY the issue ("reason") and a coaching hint ("learningPoint")** so the author can practice revising the sentence themselves first.
 Therefore, for every item in "suggestions":
-- "reason": Clearly explain what the issue is in "originalText" (e.g., double superlative, uncountable noun error, redundant modifier, or unclear logic) WITHOUT giving away the exact rewritten sentence.
+- "reason": Clearly explain what the issue is in "originalText" (e.g., double superlative, uncountable noun error, redundant modifier, unclear logic, or RAG rule violation) WITHOUT giving away the exact rewritten sentence.
 - "learningPoint": Provide a constructive coaching hint or guiding tip that helps the author figure out how to fix the phrase on their own (do NOT paste the full rewritten sentence inside "reason" or "learningPoint").
 - "suggestedText": Still provide the ideal revised phrase here so the author can optionally check the reference rewrite in the sidebar after attempting their own revision.`;
   }
@@ -2433,13 +3596,13 @@ Therefore, for every item in "suggestions":
   if (hasExisting) {
     systemPrompt += `\n\n[IMPORTANT: Consideration of Existing Suggestions]
 The target scope already contains the following pending suggestions:
-${docData.existingSuggestions.map((s, idx) => `- Suggestion ${idx + 1} (ID: ${s.id}): Delete="${s.deletedText.replace(/\n/g, '')}" -> Insert="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
+${scopedDocData.existingSuggestions.map((s, idx) => `- Suggestion ${idx + 1} (ID: ${s.id}): Delete="${s.deletedText.replace(/\n/g, '')}" -> Insert="${s.insertedText.replace(/\n/g, '')}"`).join('\n')}
 Please take these existing suggestions into account and propose additional improvements on the remaining settled text blocks, tables, and figures/charts.`;
   }
 
   if (hasResolved) {
-    systemPrompt += `\n\n[Reference: Resolved Review History in Document]
-The attached file also includes ${resolvedList.length} previously resolved review thread(s) (accepted/rejected suggestions or resolved comments). Avoid proposing edits that contradict or revert improvements the author has already accepted or resolved, and incorporate continuity into your coaching.`;
+    systemPrompt += `\n\n[Reference: Resolved Review History in Scope]
+The attached file also includes ${resolvedList.length} previously resolved review thread(s) within the active scope (accepted/rejected suggestions or resolved comments). Avoid proposing edits that contradict or revert improvements the author has already accepted or resolved, and incorporate continuity into your coaching.`;
   }
 
   if (customPrompt && customPrompt.trim()) {
@@ -2448,21 +3611,21 @@ Incorporate the following instructions as high-priority criteria in addition to 
 "${customPrompt.trim()}"`;
   }
 
-  const blocksContext = docData.editableBlocks.length > 0
-    ? docData.editableBlocks.map((b, i) => `[Block ${i + 1} (${b.source === 'table' ? 'Table Cell' : 'Body'})] "${b.text}"`).join('\n')
+  const blocksContext = scopedDocData.editableBlocks.length > 0
+    ? scopedDocData.editableBlocks.map((b, i) => `[Block ${i + 1} (${b.source === 'table' ? 'Table Cell' : 'Body'})] "${b.text}"`).join('\n')
     : 'None';
 
   const tablesContext = hasTables
-    ? docData.tables.map(t => `${t.targetId} (${t.rowsCount} rows x ${t.colsCount} cols):\n${t.markdown}`).join('\n\n')
+    ? scopedDocData.tables.map(t => `${t.targetId} (${t.rowsCount} rows x ${t.colsCount} cols):\n${t.markdown}`).join('\n\n')
     : 'None';
 
   const visualsContext = hasVisuals
-    ? docData.visualElements.map(v => `- ${v.targetId}: Type=${v.type}, Title="${v.title}", Description="${v.description}"`).join('\n')
+    ? scopedDocData.visualElements.map(v => `- ${v.targetId}: Type=${v.type}, Title="${v.title}", Description="${v.description}"`).join('\n')
     : 'None';
 
   const manuscriptSections = [];
   if (!isSelectionOnly && (hasTables || hasVisuals || hasExisting)) {
-    manuscriptSections.push(`# Manuscript Structural Layout & Annotations\n${docData.annotatedText}`);
+    manuscriptSections.push(`# Manuscript Structural Layout & Annotations\n${scopedDocData.annotatedText}`);
   }
   manuscriptSections.push(`# Target Editable Settled Text Blocks\n("originalText" in "suggestions" MUST be extracted as an exact match from these blocks)\n${blocksContext}`);
   if (hasTables) {
@@ -2476,7 +3639,7 @@ Incorporate the following instructions as high-priority criteria in addition to 
   }
 
   const manuscriptFileContent = manuscriptSections.join('\n\n');
-  const userMessage = `Please read the attached manuscript Markdown file (${manuscriptFileName}) along with any attached figure image files, and generate the proofreading suggestions, element review comments, and Writing Coach & Learning Summary adhering strictly to the JSON response schema.`;
+  const userMessage = `Please read the attached ${hasRagRules ? `RAG rulebook file(s) (${activeRagFiles.length} file(s)) as authoritative rules alongside the ` : ''}manuscript Markdown file (${manuscriptFileName}) and any attached figure image files, and generate the proofreading suggestions, element review comments, and Writing Coach & Learning Summary adhering strictly to the JSON response schema.`;
 
   const responseSchema = {
     type: 'OBJECT',
@@ -2506,7 +3669,7 @@ Incorporate the following instructions as high-priority criteria in addition to 
       },
       existingSuggestionsNote: {
         type: 'STRING',
-        description: 'Explanation of how existing suggestions or resolved reviews were considered (empty string if none, in English).'
+        description: 'Explanation of how existing suggestions, resolved reviews, or RAG rulebook files were considered (empty string if none, in English).'
       },
       suggestions: {
         type: 'ARRAY',
@@ -2524,7 +3687,7 @@ Incorporate the following instructions as high-priority criteria in addition to 
             },
             category: {
               type: 'STRING',
-              description: 'Revision category in English (e.g., Clarity & Logic, Table Phrasing, Word Choice, Conciseness, Grammar).'
+              description: 'Revision category in English (e.g., RAG Guideline, Clarity & Logic, Table Phrasing, Word Choice, Conciseness, Grammar).'
             },
             reason: {
               type: 'STRING',
@@ -2580,18 +3743,41 @@ Incorporate the following instructions as high-priority criteria in addition to 
 }
 
 /**
- * Uploads the target manuscript Markdown file (`text/markdown`) and any binary image data
- * for visual elements in parallel to the Gemini File API using the resumable upload protocol,
- * returning their temporary file URIs (`fileData.fileUri`) and resource names (`file.name`) for cleanup.
+ * Uploads the target manuscript Markdown file (`text/markdown`), any Google Drive RAG rulebook
+ * files (`text/markdown` or `text/plain`), and any binary image data for visual elements in parallel
+ * to the Gemini File API using the resumable upload protocol, returning their temporary file URIs
+ * (`fileData.fileUri`) and resource names (`file.name`) for cleanup.
  *
  * @param {string} manuscriptMarkdown UTF-8 Markdown content representing the manuscript or selected excerpt.
  * @param {string} manuscriptFileName Display file name for the manuscript Markdown file.
  * @param {Array<Object>} visualElements Visual elements extracted from the document.
  * @param {string} apiKey Gemini API key.
+ * @param {Array<Object>=} ragRuleFiles Optional RAG rule files fetched from Google Drive.
  * @return {Array<Object>} Uploaded file metadata objects ({ kind, targetId, type, title, mimeType, fileName, fileUri }).
  */
-function uploadManuscriptAndVisualsToGeminiFiles_(manuscriptMarkdown, manuscriptFileName, visualElements, apiKey) {
+function uploadManuscriptAndVisualsToGeminiFiles_(manuscriptMarkdown, manuscriptFileName, visualElements, apiKey, ragRuleFiles) {
   const itemsToUpload = [];
+
+  // 0. Queue Google Drive RAG Rulebook files (if any)
+  if (Array.isArray(ragRuleFiles) && ragRuleFiles.length > 0) {
+    ragRuleFiles.forEach((rf, idx) => {
+      if (!rf || typeof rf.content !== 'string' || !rf.content.trim()) return;
+      const ragTitle = rf.title || `rag_rule_${idx + 1}.md`;
+      const ragMime = rf.mimeType === 'text/markdown' ? 'text/markdown' : 'text/plain';
+      const ragBlob = Utilities.newBlob(rf.content, ragMime, ragTitle);
+      const ragBytes = ragBlob.getBytes();
+      if (ragBytes && ragBytes.length > 0) {
+        itemsToUpload.push({
+          kind: 'RAG_RULE',
+          targetId: `RAG_RULE_${idx + 1}`,
+          type: rf.sourceType === 'GOOGLE_DOC' ? 'Google Doc Rulebook' : 'Text Rulebook',
+          title: ragTitle,
+          mimeType: ragMime,
+          bytes: ragBytes
+        });
+      }
+    });
+  }
 
   if (manuscriptMarkdown && typeof manuscriptMarkdown === 'string' && manuscriptMarkdown.trim().length > 0) {
     const fname = manuscriptFileName || 'manuscript_context.md';
@@ -2646,7 +3832,7 @@ function uploadManuscriptAndVisualsToGeminiFiles_(manuscriptMarkdown, manuscript
 
   if (itemsToUpload.length === 0) return [];
 
-  // 2. Initiate Resumable Upload sessions on the Gemini File API in parallel for both manuscript & figures
+  // 2. Initiate Resumable Upload sessions on the Gemini File API in parallel for RAG rules, manuscript & figures
   const uploadInitEndpoint = 'https://generativelanguage.googleapis.com/upload/v1beta/files';
   const startRequests = itemsToUpload.map(item => ({
     url: uploadInitEndpoint,
@@ -2661,7 +3847,9 @@ function uploadManuscriptAndVisualsToGeminiFiles_(manuscriptMarkdown, manuscript
     },
     payload: JSON.stringify({
       file: {
-        display_name: (item.kind === 'MANUSCRIPT' ? item.title : `${item.targetId}_${item.title || 'figure'}`).slice(0, 100)
+        display_name: (item.kind === 'MANUSCRIPT'
+          ? item.title
+          : `${item.targetId}_${item.title || 'file'}`).slice(0, 100)
       }
     }),
     muteHttpExceptions: true

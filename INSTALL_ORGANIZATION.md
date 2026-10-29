@@ -10,12 +10,12 @@ In K–12 schools, universities, academic research laboratories, and corporate o
 1. **Google AI Studio Is Blocked for Students / End Users:** Students (especially under-18 organizational units) cannot access Google AI Studio to generate their own Gemini API keys, and asking non-technical users to manage API keys is impractical.
 2. **API Key Security & Universal Document Access:** Embedding an API key inside a shared Google Docs template exposes the script (`Extensions > Apps Script`) to anyone with edit access, and making copies of a Google Doc via Google Classroom automatically wipes `ScriptProperties`.
 
-Starting in **`v1.0.3`**, **DocuMentor AI** natively resolves both challenges **using the exact same single codebase—without requiring IT staff or educators to modify a single line of code**:
+Starting in **`v1.0.3`** (and expanded with Google Drive RAG in **`v1.0.4`**), **DocuMentor AI** natively resolves both challenges **using the exact same single codebase—without requiring IT staff or educators to modify a single line of code**:
 
-- **Central Admin API Key via GUI (`ScriptProperties`):** The IT administrator sets `GEMINI_API_KEY` once inside the Apps Script visual interface (**Project Settings ⚙️ > Script Properties**). When `DocuMentor AI` detects a key in `ScriptProperties`, it automatically activates **Admin-Managed Mode**:
+- **Central Admin API Key & Optional RAG Folder via GUI (`ScriptProperties`):** The IT administrator sets `GEMINI_API_KEY` (and optionally `RAG_FOLDER_ID` pointing to a shared Google Drive folder of style guides, rubrics, or coding standards) once inside the Apps Script visual interface (**Project Settings ⚙️ > Script Properties**). When `DocuMentor AI` detects these properties in `ScriptProperties`, it automatically activates **Admin-Managed Mode**:
   - End users (students, researchers, employees) never see an API key prompt.
-  - The sidebar displays **`🔒 API Key Configured (School / Organization Admin)`** and hides the **Reset** button so users cannot accidentally clear or overwrite the organization's key.
-  - The raw API key string is never sent to the client browser.
+  - The sidebar status bar displays **`🔑 API: Admin`** (and **`📚 RAG: Admin`** when `RAG_FOLDER_ID` is set) and hides the **Reset / Clear** buttons so users cannot accidentally clear or overwrite the organization's settings.
+  - The raw API key string and admin folder ID are never sent to the client browser.
 - **Private (Domain-Only) Google Workspace Marketplace Add-on:** By publishing the script as a **Private (Internal)** Editor Add-on within your Google Workspace domain:
   - **100% Isolated from Student Inspection:** Because the script runs as a standalone add-on rather than being attached to a shared document, students cannot open `Extensions > Apps Script` to view the code or extract the API key.
   - **Works on Every Google Document:** Students and faculty can launch **DocuMentor AI** from **Extensions > DocuMentor AI > Open Dashboard** on any new or existing Google Doc (including Google Classroom assignments).
@@ -74,12 +74,15 @@ Before starting the 3-step setup below, ensure the following prerequisites are m
    - Select **`Code.gs`** and replace its contents with **[`src/code.js`](src/code.js)**.
    - Click **`+`** next to **Files** > **HTML**, name the file **`index`** (it will appear as `index.html`), and paste the contents of **[`src/index.html`](src/index.html)**.
    - Click **Save project** (💾) or press `Ctrl + S` / `Cmd + S`.
-5. **Register the Shared Gemini API Key in `ScriptProperties` (Visual GUI):**
+5. **Register the Shared Gemini API Key (and Optional Google Drive RAG Folder) in `ScriptProperties` (Visual GUI):**
    - Click **Project Settings** (the gear icon ⚙️ on the left sidebar) again.
    - Scroll down to the **Script Properties** section at the bottom and click **Add script property**.
    - Enter the exact property name and your organization's Gemini API key:
      - **Property:** `GEMINI_API_KEY`
      - **Value:** `AIzaSy...` *(your school/organization Gemini API key)*
+   - *(Optional)* To ground all users' proofreading and code reviews in a shared Google Drive folder or single file of organizational style guides, rubrics, or coding standards (`.md`, `.txt`, or Google Docs), click **Add script property** again:
+     - **Property:** `RAG_FOLDER_ID`
+     - **Value:** `1AbCdEf...` *(your shared Google Drive Folder/File ID or URL)*
    - Click **Save script properties**.
 6. *(Optional)* In the **Project Settings (⚙️)** screen, copy the **Script ID**—you will use it in Phase 2.
 
@@ -96,13 +99,14 @@ Before starting the 3-step setup below, ensure the following prerequisites are m
 3. **Create a Versioned Deployment in Apps Script:**
    - At the top-right of the Apps Script editor, click **Deploy** > **New deployment**.
    - Click the gear icon ⚙️ next to *"Select type"* and choose **Add-on**.
-   - Under *New description*, type `v1.0.3` and click **Deploy**.
+   - Under *New description*, type `v1.0.4` and click **Deploy**.
    - Note the **Version number** (e.g., `1`).
 4. **Enable Required APIs in GCP Console:**
    - In the Google Cloud Console for your project, go to **APIs & Services > Library**.
-   - Search for and click **Enable** on both of the following APIs:
+   - Search for and click **Enable** on the following APIs:
      1. **`Google Docs API`** *(Required so `DocuMentor AI` can read/write suggestions and comments via `v1`)*
-     2. **`Google Workspace Marketplace SDK`** *(Required to publish the internal add-on)*
+     2. **`Google Drive API`** *(Required when using Google Drive RAG Rulebook folders)*
+     3. **`Google Workspace Marketplace SDK`** *(Required to publish the internal add-on)*
 5. **Configure the OAuth Consent Screen as `Internal`:**
    - In the GCP Console, go to **APIs & Services > OAuth consent screen** (or **Google Auth Platform > Audience**).
    - Select **Internal** as the User Type (restricting access strictly to users within your school/organization domain).
@@ -112,8 +116,9 @@ Before starting the 3-step setup below, ensure the following prerequisites are m
      - **App Visibility:** Select **Private** *(ensures the add-on is visible ONLY to your school/organization domain and requires zero Google review wait time)*.
      - **Installation Settings:** Select **App can be installed by any user on the domain or by an admin** (or **Admin only** if you only want central OU installation).
      - **App Integration:** Check **✅ Docs add-on**, paste your Apps Script **Script ID** (from Phase 1, Step 6) and the **Deployment Version number** (`1` from Phase 2, Step 3).
-     - **OAuth Scopes:** Add the three scopes from [`src/appsscript.json`](src/appsscript.json) in addition to the default scopes:
+     - **OAuth Scopes:** Add the four scopes from [`src/appsscript.json`](src/appsscript.json) in addition to the default scopes:
        - `https://www.googleapis.com/auth/documents`
+       - `https://www.googleapis.com/auth/drive.readonly`
        - `https://www.googleapis.com/auth/script.container.ui`
        - `https://www.googleapis.com/auth/script.external_request`
      - Click **Save Draft**.

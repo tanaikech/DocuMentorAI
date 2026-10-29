@@ -6,6 +6,11 @@
         "userSymbol": "Docs",
         "serviceId": "docs",
         "version": "v1"
+      },
+      {
+        "userSymbol": "Drive",
+        "serviceId": "drive",
+        "version": "v3"
       }
     ]
   },
@@ -13,6 +18,7 @@
   "runtimeVersion": "V8",
   "oauthScopes": [
     "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/script.container.ui",
     "https://www.googleapis.com/auth/script.external_request"
   ]
