@@ -1,12 +1,12 @@
 /**
  * Application Name: DocuMentor AI
  * Description: AI-Powered Proofreading & Multimodal Suggestion Coach for Google Docs
- * Version: v1.0.4
+ * Version: v1.0.5
  * Author: Kanshi Tanaike
  */
 
 const APP_NAME = 'DocuMentor AI';
-const APP_VERSION = 'v1.0.4';
+const APP_VERSION = 'v1.0.5';
 const APP_AUTHOR = 'Kanshi Tanaike';
 const APP_REPO_URL = 'https://github.com/tanaikech/DocuMentorAI';
 
@@ -17,6 +17,15 @@ const PROP_KEY_LANG = 'UI_LANGUAGE';
 const PROP_KEY_SELECTION_ONLY = 'PROOFREAD_SELECTION_ONLY';
 const PROP_KEY_HINT_ONLY = 'PROOFREAD_HINT_ONLY';
 const PROP_KEY_INCLUDE_RESOLVED = 'INCLUDE_RESOLVED_HISTORY';
+const PROP_KEY_DECISION_RECORD = 'DOCUMENTOR_DECISION_RECORD_V1';
+
+const DECISION_MAX_PENDING = 25;
+const DECISION_MAX_RECENT_LOG = 12;
+const DECISION_TEXT_SIG_LIMIT = 80;
+const DECISION_SNIPPET_LIMIT = 45;
+const DECISION_ANCHOR_LIMIT = 28;
+const DECISION_STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DECISION_SAFE_JSON_BYTES = 7500;
 
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 const ALLOWED_MODELS = ['gemini-3.8-flash', 'gemini-4-argon'];
@@ -2326,6 +2335,16 @@ function parseDocumentStructure_(docJson, options) {
     ? selectedTextPreview.trim().length
     : trimmedFullText.length;
 
+  const allTabSuggestionsList = Object.values(existingSuggestionsMap);
+  const isTabCompletelyEmpty =
+    trimmedFullText.length === 0 &&
+    previewAcceptedText.trim().length === 0 &&
+    allTablesCount === 0 &&
+    allVisualsCount === 0 &&
+    allTabSuggestionsList.length === 0 &&
+    (extractedThreads.activeComments || []).length === 0 &&
+    (extractedThreads.resolvedReviews || []).length === 0;
+
   const isEmpty =
     trimmedFullText.length === 0 &&
     previewAcceptedText.trim().length === 0 &&
@@ -2334,6 +2353,18 @@ function parseDocumentStructure_(docJson, options) {
     existingSuggestionsList.length === 0 &&
     activeCommentsList.length === 0 &&
     resolvedReviewsList.length === 0;
+
+  // Reconcile pending AI suggestions in DocumentProperties against the current tab's settled prose
+  // and resolved thread history, strictly separating AI-issued suggestions from manual human edits.
+  const fullTabSettledText = allEditableBlocks.map(b => b.text).join('\n');
+  const decisionRecord = reconcileDecisionRecordWithTab_({
+    activeTabId: activeTabId,
+    isTabCompletelyEmpty: isTabCompletelyEmpty,
+    fullTabSettledText: fullTabSettledText,
+    allTabSuggestions: allTabSuggestionsList,
+    activeSuggestionIds: collectedIds.suggestionIds || [],
+    allResolvedReviews: extractedThreads.resolvedReviews || []
+  });
 
   return {
     documentId: docJson.documentId,
@@ -2354,7 +2385,787 @@ function parseDocumentStructure_(docJson, options) {
     allAiCommentIds: collectedIds.aiCommentIds,
     allCommentIds: collectedIds.allCommentIds,
     tables: targetTablesList,
-    visualElements: targetVisualElements
+    visualElements: targetVisualElements,
+    decisionRecord: decisionRecord
+  };
+}
+
+/**
+ * ============================================================================
+ * Coach Decision Record & Impact Tracker (DocumentProperties)
+ * ============================================================================
+ * Preserves a compact decision record (Accepted, Edited, or Rejected AI suggestions)
+ * in DocumentProperties (< 9 KB quota guard) so authors can see whether DocuMentor AI
+ * is genuinely improving the draft or generating unnecessary review work.
+ *
+ * Strict Provenance & Lifecycle Rules:
+ * 1. Provenance Isolation: Only inline suggestions issued by DocuMentor AI (registered
+ *    in Step 4 via `createdSuggestionIds` or carrying `[DocuMentor AI` / `【DocuMentor AI`
+ *    comment signatures) are tracked in the Coach Decision Record. Pre-existing manual
+ *    suggestions/comments by human collaborators are strictly excluded from AI metrics.
+ * 2. Stale / Superseded Context Eviction: If a paragraph is deleted or rewritten wholesale
+ *    such that neither the original text, suggested text, nor surrounding context anchors
+ *    remain in the tab, or if a pending item exceeds the 7-day TTL, it is marked EXPIRED
+ *    and excluded from the acceptance-rate denominator rather than miscounted as Rejected/Edited.
+ * 3. Size & Quota Guard: Pending items and recent decision logs are bounded by FIFO ring
+ *    buffers (`DECISION_MAX_PENDING`, `DECISION_MAX_RECENT_LOG`) and an explicit byte budget
+ *    (`DECISION_SAFE_JSON_BYTES = 7500`) to guarantee zero DocumentProperties quota errors.
+ */
+
+/**
+ * Creates a clean, empty Decision Record state object.
+ *
+ * @return {Object} Empty decision record structure.
+ */
+function createEmptyDecisionRecord_() {
+  return {
+    v: 1,
+    updatedAt: '',
+    cumulative: {
+      issued: 0,
+      accepted: 0,
+      edited: 0,
+      rejected: 0,
+      expired: 0
+    },
+    lastRun: {
+      runId: '',
+      timestamp: '',
+      issued: 0,
+      accepted: 0,
+      edited: 0,
+      rejected: 0,
+      expired: 0
+    },
+    pending: [],
+    recentDecisions: []
+  };
+}
+
+/**
+ * Normalizes and truncates a text string for compact signature matching or snippet storage.
+ *
+ * @param {string} str Raw text string.
+ * @param {number} maxLen Maximum character length.
+ * @return {string} Normalized and truncated string.
+ */
+function normalizeDecisionText_(str, maxLen) {
+  if (!str || typeof str !== 'string') return '';
+  const cleaned = str.replace(/\s+/g, ' ').trim();
+  if (!maxLen || cleaned.length <= maxLen) return cleaned;
+  return cleaned.slice(0, maxLen);
+}
+
+/**
+ * Checks whether a suggestion entry or comment thread carries the DocuMentor AI signature.
+ *
+ * @param {Object} sugOrThread Suggestion or thread object.
+ * @return {boolean} True if authored/tagged by DocuMentor AI.
+ */
+function hasDocuMentorAiSignature_(sugOrThread) {
+  if (!sugOrThread || typeof sugOrThread !== 'object') return false;
+  const checkStr = s => typeof s === 'string' && (s.includes('DocuMentor AI') || s.includes('AI推敲コーチ'));
+
+  if (checkStr(sugOrThread.content) || checkStr(sugOrThread.text)) return true;
+  if (Array.isArray(sugOrThread.comments)) {
+    for (let i = 0; i < sugOrThread.comments.length; i++) {
+      const c = sugOrThread.comments[i];
+      if (checkStr(c.content) || checkStr(c.text)) return true;
+      if (Array.isArray(c.replies) && c.replies.some(r => checkStr(r.content))) return true;
+    }
+  }
+  if (Array.isArray(sugOrThread.replies) && sugOrThread.replies.some(r => checkStr(r.content))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Loads and sanitizes the raw Decision Record from DocumentProperties.
+ *
+ * @return {Object} Normalized raw decision record.
+ */
+function loadRawDecisionRecord_() {
+  const empty = createEmptyDecisionRecord_();
+  try {
+    const docProps = PropertiesService.getDocumentProperties();
+    if (!docProps) return empty;
+    const rawJson = docProps.getProperty(PROP_KEY_DECISION_RECORD);
+    if (!rawJson) return empty;
+    const parsed = JSON.parse(rawJson);
+    if (!parsed || typeof parsed !== 'object') return empty;
+
+    const normCounter = src => ({
+      issued: Math.max(0, Number((src && src.issued) || 0)),
+      accepted: Math.max(0, Number((src && src.accepted) || 0)),
+      edited: Math.max(0, Number((src && src.edited) || 0)),
+      rejected: Math.max(0, Number((src && src.rejected) || 0)),
+      expired: Math.max(0, Number((src && src.expired) || 0))
+    });
+
+    return {
+      v: 1,
+      updatedAt: String(parsed.updatedAt || ''),
+      cumulative: normCounter(parsed.cumulative),
+      lastRun: Object.assign(
+        {
+          runId: String((parsed.lastRun && parsed.lastRun.runId) || ''),
+          timestamp: String((parsed.lastRun && parsed.lastRun.timestamp) || '')
+        },
+        normCounter(parsed.lastRun)
+      ),
+      pending: Array.isArray(parsed.pending) ? parsed.pending.slice(0, DECISION_MAX_PENDING) : [],
+      recentDecisions: Array.isArray(parsed.recentDecisions) ? parsed.recentDecisions.slice(0, DECISION_MAX_RECENT_LOG) : []
+    };
+  } catch (e) {
+    return empty;
+  }
+}
+
+/**
+ * Safely saves the Decision Record to DocumentProperties after enforcing FIFO limits
+ * and a strict < 7.5 KB JSON byte guard so the 9 KB DocumentProperties limit is never exceeded.
+ *
+ * @param {Object} record Decision record object to persist.
+ */
+function saveRawDecisionRecord_(record) {
+  if (!record || typeof record !== 'object') return;
+  try {
+    const docProps = PropertiesService.getDocumentProperties();
+    if (!docProps) return;
+
+    record.updatedAt = new Date().toISOString();
+    if (!Array.isArray(record.pending)) record.pending = [];
+    if (!Array.isArray(record.recentDecisions)) record.recentDecisions = [];
+
+    if (record.pending.length > DECISION_MAX_PENDING) {
+      record.pending = record.pending.slice(record.pending.length - DECISION_MAX_PENDING);
+    }
+    if (record.recentDecisions.length > DECISION_MAX_RECENT_LOG) {
+      record.recentDecisions = record.recentDecisions.slice(0, DECISION_MAX_RECENT_LOG);
+    }
+
+    let serialized = JSON.stringify(record);
+    while (serialized.length > DECISION_SAFE_JSON_BYTES && (record.recentDecisions.length > 3 || record.pending.length > 5)) {
+      if (record.recentDecisions.length > 3) {
+        record.recentDecisions.pop();
+      } else if (record.pending.length > 5) {
+        record.pending.shift();
+      } else {
+        break;
+      }
+      serialized = JSON.stringify(record);
+    }
+
+    docProps.setProperty(PROP_KEY_DECISION_RECORD, serialized);
+  } catch (e) {
+    // Non-fatal: do not interrupt document proofreading if property write fails
+  }
+}
+
+/**
+ * Computes character bigram Dice similarity (0.0 to 1.0) between two strings.
+ * Language-agnostic: works across English prose, Japanese prose, and source code.
+ *
+ * @param {string} strA First string.
+ * @param {string} strB Second string.
+ * @return {number} Similarity score between 0.0 and 1.0.
+ */
+function computeBigramSimilarity_(strA, strB) {
+  const a = normalizeDecisionText_(strA, 120).toLowerCase();
+  const b = normalizeDecisionText_(strB, 120).toLowerCase();
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) {
+    return a === b ? 1 : 0;
+  }
+
+  const bigramsA = new Map();
+  for (let i = 0; i < a.length - 1; i++) {
+    const bg = a.slice(i, i + 2);
+    bigramsA.set(bg, (bigramsA.get(bg) || 0) + 1);
+  }
+
+  let intersection = 0;
+  for (let j = 0; j < b.length - 1; j++) {
+    const bg = b.slice(j, j + 2);
+    const count = bigramsA.get(bg) || 0;
+    if (count > 0) {
+      intersection++;
+      bigramsA.set(bg, count - 1);
+    }
+  }
+
+  return (2 * intersection) / ((a.length - 1) + (b.length - 1));
+}
+
+/**
+ * Evaluates a single resolved/disappeared AI suggestion item to determine whether it was:
+ * - 'ACCEPTED': AI suggested text was adopted verbatim into the document.
+ * - 'EDITED': Author modified the AI suggestion or rewrote the flagged span into a custom phrase.
+ * - 'REJECTED': Author rejected the suggestion and kept the original text intact.
+ * - 'EXPIRED': Surrounding paragraph/context was deleted or replaced wholesale (excluded from metrics).
+ *
+ * @param {Object} pendingItem Pending AI suggestion record.
+ * @param {string} normTabText Normalized settled text of the active tab.
+ * @param {Map<string, string>} resolvedStateMap Map of suggestionId -> resolutionState from Docs API.
+ * @param {string=} explicitAction Optional explicit bulk action ('ACCEPTED' or 'REJECTED').
+ * @return {Object} `{ status: 'ACCEPTED'|'EDITED'|'REJECTED'|'EXPIRED', finalSnippet: string }`
+ */
+function evaluatePendingItemDecision_(pendingItem, normTabText, resolvedStateMap, explicitAction) {
+  const origNorm = normalizeDecisionText_(pendingItem.orig, DECISION_TEXT_SIG_LIMIT);
+  const sugNorm = normalizeDecisionText_(pendingItem.sug, DECISION_TEXT_SIG_LIMIT);
+  const beforeNorm = normalizeDecisionText_(pendingItem.ctxBefore, DECISION_ANCHOR_LIMIT);
+  const afterNorm = normalizeDecisionText_(pendingItem.ctxAfter, DECISION_ANCHOR_LIMIT);
+
+  if (explicitAction === 'ACCEPTED') {
+    return {
+      status: 'ACCEPTED',
+      finalSnippet: normalizeDecisionText_(sugNorm || origNorm, DECISION_SNIPPET_LIMIT)
+    };
+  }
+  if (explicitAction === 'REJECTED') {
+    return {
+      status: 'REJECTED',
+      finalSnippet: normalizeDecisionText_(origNorm, DECISION_SNIPPET_LIMIT)
+    };
+  }
+
+  const apiState = (resolvedStateMap && pendingItem.sId && resolvedStateMap.get(pendingItem.sId)) || '';
+
+  // 1. Check exact local span bounded by ctxBefore and ctxAfter when both anchors exist in the tab
+  if (beforeNorm.length >= 3 && afterNorm.length >= 3) {
+    const bIdx = normTabText.indexOf(beforeNorm);
+    if (bIdx !== -1) {
+      const spanStart = bIdx + beforeNorm.length;
+      const aIdx = normTabText.indexOf(afterNorm, spanStart);
+      if (aIdx !== -1 && (aIdx - spanStart) <= 260) {
+        const betweenRaw = normTabText.slice(spanStart, aIdx).trim();
+        if (sugNorm && (betweenRaw === sugNorm || (betweenRaw.includes(sugNorm) && betweenRaw !== origNorm))) {
+          return {
+            status: 'ACCEPTED',
+            finalSnippet: normalizeDecisionText_(betweenRaw, DECISION_SNIPPET_LIMIT)
+          };
+        }
+        if (origNorm && betweenRaw === origNorm) {
+          return {
+            status: 'REJECTED',
+            finalSnippet: normalizeDecisionText_(origNorm, DECISION_SNIPPET_LIMIT)
+          };
+        }
+        if (betweenRaw.length > 0 && betweenRaw !== origNorm && betweenRaw !== sugNorm) {
+          return {
+            status: 'EDITED',
+            finalSnippet: normalizeDecisionText_(betweenRaw, DECISION_SNIPPET_LIMIT)
+          };
+        }
+        if (betweenRaw.length === 0 && sugNorm.length === 0 && origNorm.length > 0) {
+          // Pure deletion suggestion that was accepted
+          return {
+            status: 'ACCEPTED',
+            finalSnippet: '(Deleted as suggested)'
+          };
+        }
+      }
+    }
+  }
+
+  // 2. Check presence of suggestedText vs. originalText in settled tab text
+  const hasSug = sugNorm.length > 0 && normTabText.includes(sugNorm);
+  const hasOrig = origNorm.length > 0 && normTabText.includes(origNorm);
+  const hasBeforeAnchor = beforeNorm.length >= 4 && normTabText.includes(beforeNorm);
+  const hasAfterAnchor = afterNorm.length >= 4 && normTabText.includes(afterNorm);
+  const hasAnyAnchor = hasBeforeAnchor || hasAfterAnchor;
+
+  if (hasSug && apiState !== 'REJECTED') {
+    return {
+      status: 'ACCEPTED',
+      finalSnippet: normalizeDecisionText_(sugNorm, DECISION_SNIPPET_LIMIT)
+    };
+  }
+
+  if (hasOrig && !hasSug) {
+    return {
+      status: 'REJECTED',
+      finalSnippet: normalizeDecisionText_(origNorm, DECISION_SNIPPET_LIMIT)
+    };
+  }
+
+  // Neither originalText nor exact suggestedText is present verbatim
+  if (!hasOrig && !hasSug) {
+    if (hasAnyAnchor || apiState === 'ACCEPTED') {
+      // Try to extract a short snippet near the surviving anchor to show what the user edited it into
+      let editedSnippet = '';
+      if (hasBeforeAnchor) {
+        const bPos = normTabText.indexOf(beforeNorm) + beforeNorm.length;
+        editedSnippet = normTabText.slice(bPos, bPos + DECISION_SNIPPET_LIMIT).trim();
+      } else if (hasAfterAnchor) {
+        const aPos = normTabText.indexOf(afterNorm);
+        editedSnippet = normTabText.slice(Math.max(0, aPos - DECISION_SNIPPET_LIMIT), aPos).trim();
+      }
+      return {
+        status: 'EDITED',
+        finalSnippet: normalizeDecisionText_(editedSnippet || sugNorm || origNorm, DECISION_SNIPPET_LIMIT)
+      };
+    }
+
+    // Check if a sentence in normTabText has strong similarity to suggestedText (partial edit without intact anchor)
+    if (sugNorm.length >= 12 && normTabText.length > 0) {
+      const windowLen = Math.min(normTabText.length, sugNorm.length + 20);
+      const step = Math.max(4, Math.floor(sugNorm.length / 3));
+      let bestSim = 0;
+      let bestWindow = '';
+      for (let pos = 0; pos <= normTabText.length - Math.min(10, windowLen); pos += step) {
+        const chunk = normTabText.slice(pos, pos + windowLen);
+        const sim = computeBigramSimilarity_(sugNorm, chunk);
+        if (sim > bestSim) {
+          bestSim = sim;
+          bestWindow = chunk;
+        }
+      }
+      if (bestSim >= 0.55 && bestSim < 0.99) {
+        return {
+          status: 'EDITED',
+          finalSnippet: normalizeDecisionText_(bestWindow, DECISION_SNIPPET_LIMIT)
+        };
+      }
+    }
+
+    // Otherwise, the entire section/paragraph was removed or replaced wholesale -> EXPIRED
+    return {
+      status: 'EXPIRED',
+      finalSnippet: ''
+    };
+  }
+
+  // Both hasOrig and hasSug matched (e.g. short common phrase) -> defer to API resolution state
+  if (apiState === 'REJECTED') {
+    return {
+      status: 'REJECTED',
+      finalSnippet: normalizeDecisionText_(origNorm, DECISION_SNIPPET_LIMIT)
+    };
+  }
+  return {
+    status: 'ACCEPTED',
+    finalSnippet: normalizeDecisionText_(sugNorm || origNorm, DECISION_SNIPPET_LIMIT)
+  };
+}
+
+/**
+ * Builds the rich client-facing Decision Record summary object with computed rates and coaching verdict.
+ *
+ * @param {Object} record Raw decision record from DocumentProperties.
+ * @param {Object=} contextOpts Optional live counts (`activeAiSuggestionsCount`, `activeHumanSuggestionsCount`).
+ * @return {Object} Client-ready decision record payload.
+ */
+function buildClientDecisionRecordSummary_(record, contextOpts) {
+  const rec = record || createEmptyDecisionRecord_();
+  const opts = contextOpts || {};
+  const cum = rec.cumulative || { issued: 0, accepted: 0, edited: 0, rejected: 0, expired: 0 };
+  const lr = rec.lastRun || { runId: '', timestamp: '', issued: 0, accepted: 0, edited: 0, rejected: 0, expired: 0 };
+  const pendingList = Array.isArray(rec.pending) ? rec.pending : [];
+  const recentList = Array.isArray(rec.recentDecisions) ? rec.recentDecisions : [];
+
+  const decidedCount = cum.accepted + cum.edited + cum.rejected;
+  const constructiveCount = cum.accepted + cum.edited;
+
+  const impactRate = decidedCount > 0 ? Math.round((constructiveCount / decidedCount) * 100) : null;
+  const acceptRate = decidedCount > 0 ? Math.round((cum.accepted / decidedCount) * 100) : null;
+  const editRate = decidedCount > 0 ? Math.round((cum.edited / decidedCount) * 100) : null;
+  const rejectRate = decidedCount > 0 ? Math.round((cum.rejected / decidedCount) * 100) : null;
+
+  const lrDecided = lr.accepted + lr.edited + lr.rejected;
+  const lrConstructive = lr.accepted + lr.edited;
+  const lrImpactRate = lrDecided > 0 ? Math.round((lrConstructive / lrDecided) * 100) : null;
+
+  const pendingAiCount = opts.activeAiSuggestionsCount !== undefined
+    ? Number(opts.activeAiSuggestionsCount)
+    : pendingList.length;
+  const activeHumanSuggestionsCount = Number(opts.activeHumanSuggestionsCount || 0);
+
+  let verdictState = 'NO_DATA';
+  if (decidedCount === 0 && pendingAiCount > 0) {
+    verdictState = 'AWAITING_REVIEW';
+  } else if (decidedCount > 0) {
+    if (impactRate >= 65) {
+      verdictState = 'IMPROVING_DRAFT';
+    } else if (impactRate >= 40) {
+      verdictState = 'BALANCED_REVIEW';
+    } else {
+      verdictState = 'HIGH_REVIEW_WORK';
+    }
+  }
+
+  return {
+    updatedAt: rec.updatedAt || '',
+    cumulative: {
+      issued: cum.issued,
+      accepted: cum.accepted,
+      edited: cum.edited,
+      rejected: cum.rejected,
+      expired: cum.expired,
+      decided: decidedCount,
+      constructive: constructiveCount,
+      impactRate: impactRate,
+      acceptRate: acceptRate,
+      editRate: editRate,
+      rejectRate: rejectRate
+    },
+    lastRun: {
+      runId: lr.runId || '',
+      timestamp: lr.timestamp || '',
+      issued: lr.issued,
+      accepted: lr.accepted,
+      edited: lr.edited,
+      rejected: lr.rejected,
+      expired: lr.expired,
+      decided: lrDecided,
+      impactRate: lrImpactRate
+    },
+    pendingAiCount: pendingAiCount,
+    activeHumanSuggestionsCount: activeHumanSuggestionsCount,
+    verdictState: verdictState,
+    recentDecisions: recentList.slice(0, DECISION_MAX_RECENT_LOG)
+  };
+}
+
+/**
+ * Reconciles pending AI-issued suggestions stored in DocumentProperties against the active tab's
+ * current settled text, active suggestions, and resolved review threads.
+ * Also tags each suggestion in `allTabSuggestions` with `isAiGenerated: true | false`.
+ *
+ * @param {Object} params Reconciliation parameters from parseDocumentStructure_.
+ * @return {Object} Updated client-ready decisionRecord summary.
+ */
+function reconcileDecisionRecordWithTab_(params) {
+  const opts = params || {};
+  const activeTabId = opts.activeTabId || '';
+  const isTabCompletelyEmpty = Boolean(opts.isTabCompletelyEmpty);
+  const fullTabSettledText = String(opts.fullTabSettledText || '');
+  const allTabSuggestions = Array.isArray(opts.allTabSuggestions) ? opts.allTabSuggestions : [];
+  const activeSuggestionIds = Array.isArray(opts.activeSuggestionIds) ? opts.activeSuggestionIds : [];
+  const allResolvedReviews = Array.isArray(opts.allResolvedReviews) ? opts.allResolvedReviews : [];
+
+  const activeSugIdSet = new Set(activeSuggestionIds);
+
+  let lock = null;
+  try {
+    lock = LockService.getDocumentLock();
+    if (lock) lock.tryLock(2500);
+  } catch (e) {}
+
+  try {
+    const record = loadRawDecisionRecord_();
+    const pendingByIdMap = new Map();
+    record.pending.forEach(p => {
+      if (p && p.sId) pendingByIdMap.set(p.sId, p);
+    });
+
+    // Separate active suggestions on the canvas into AI-generated vs. pre-existing/human suggestions
+    let activeAiCount = 0;
+    let activeHumanCount = 0;
+    allTabSuggestions.forEach(sug => {
+      const isTrackedPending = Boolean(sug && sug.id && pendingByIdMap.has(sug.id));
+      const hasAiSig = hasDocuMentorAiSignature_(sug);
+      sug.isAiGenerated = Boolean(isTrackedPending || hasAiSig);
+      if (sug.isAiGenerated) {
+        activeAiCount++;
+      } else {
+        activeHumanCount++;
+      }
+    });
+
+    if (record.pending.length === 0) {
+      return buildClientDecisionRecordSummary_(record, {
+        activeAiSuggestionsCount: activeAiCount,
+        activeHumanSuggestionsCount: activeHumanCount
+      });
+    }
+
+    const nowMs = Date.now();
+    let mutated = false;
+
+    // Case 1: If the active tab was wiped completely blank (0 text, 0 tables, 0 figures, 0 suggestions),
+    // expire any pending items belonging to this tab so stale items do not corrupt future drafts.
+    if (isTabCompletelyEmpty) {
+      const keptPending = [];
+      record.pending.forEach(item => {
+        if (item.tabId && activeTabId && item.tabId !== activeTabId && (nowMs - (item.ts || nowMs)) < DECISION_STALE_TTL_MS) {
+          keptPending.push(item);
+        } else {
+          record.cumulative.expired++;
+          if (item.runId && item.runId === record.lastRun.runId) {
+            record.lastRun.expired++;
+          }
+          mutated = true;
+        }
+      });
+      record.pending = keptPending;
+      if (mutated) {
+        saveRawDecisionRecord_(record);
+      }
+      return buildClientDecisionRecordSummary_(record, {
+        activeAiSuggestionsCount: 0,
+        activeHumanSuggestionsCount: 0
+      });
+    }
+
+    // Build map of suggestionId -> resolutionState from resolved threads in Docs API
+    const resolvedStateMap = new Map();
+    allResolvedReviews.forEach(r => {
+      if (r && r.suggestionId && r.resolutionState) {
+        resolvedStateMap.set(r.suggestionId, r.resolutionState);
+      }
+    });
+
+    const normTabText = normalizeDecisionText_(fullTabSettledText, 250000);
+    const stillPending = [];
+
+    record.pending.forEach(item => {
+      if (!item || !item.sId) {
+        mutated = true;
+        return;
+      }
+
+      // Expire ancient pending items (> 7 days old)
+      if (item.ts && (nowMs - item.ts) > DECISION_STALE_TTL_MS) {
+        record.cumulative.expired++;
+        if (item.runId && item.runId === record.lastRun.runId) {
+          record.lastRun.expired++;
+        }
+        mutated = true;
+        return;
+      }
+
+      // If this item is still an active suggestion in the document, keep it in pending
+      if (activeSugIdSet.has(item.sId)) {
+        stillPending.push(item);
+        return;
+      }
+
+      // If this item belongs to a different tab than the one currently parsed, preserve it in pending
+      if (item.tabId && activeTabId && item.tabId !== activeTabId) {
+        stillPending.push(item);
+        return;
+      }
+
+      // The AI suggestion is no longer active on this tab -> evaluate user decision!
+      const outcome = evaluatePendingItemDecision_(item, normTabText, resolvedStateMap, '');
+      mutated = true;
+
+      if (outcome.status === 'ACCEPTED') {
+        record.cumulative.accepted++;
+        if (item.runId && item.runId === record.lastRun.runId) record.lastRun.accepted++;
+      } else if (outcome.status === 'EDITED') {
+        record.cumulative.edited++;
+        if (item.runId && item.runId === record.lastRun.runId) record.lastRun.edited++;
+      } else if (outcome.status === 'REJECTED') {
+        record.cumulative.rejected++;
+        if (item.runId && item.runId === record.lastRun.runId) record.lastRun.rejected++;
+      } else {
+        record.cumulative.expired++;
+        if (item.runId && item.runId === record.lastRun.runId) record.lastRun.expired++;
+      }
+
+      if (outcome.status === 'ACCEPTED' || outcome.status === 'EDITED' || outcome.status === 'REJECTED') {
+        record.recentDecisions.unshift({
+          sId: item.sId,
+          status: outcome.status,
+          cat: normalizeDecisionText_(item.cat || 'Revision', 24),
+          origSnippet: normalizeDecisionText_(item.orig, DECISION_SNIPPET_LIMIT),
+          sugSnippet: normalizeDecisionText_(item.sug, DECISION_SNIPPET_LIMIT),
+          finalSnippet: outcome.finalSnippet || '',
+          decidedAt: new Date().toISOString()
+        });
+      }
+    });
+
+    record.pending = stillPending;
+    if (mutated) {
+      saveRawDecisionRecord_(record);
+    }
+
+    return buildClientDecisionRecordSummary_(record, {
+      activeAiSuggestionsCount: Math.max(activeAiCount, stillPending.length),
+      activeHumanSuggestionsCount: activeHumanCount
+    });
+  } finally {
+    if (lock) {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
+}
+
+/**
+ * Registers newly applied AI inline suggestions into DocumentProperties at the end of Step 4.
+ * Only called in Suggest & Coach Mode (`!isHintOnly`).
+ *
+ * @param {Array<Object>} issuedItems List of `{ suggestionId, category, originalText, suggestedText, ctxBefore, ctxAfter, tabId }`.
+ * @param {string} activeTabId Active tab ID.
+ * @return {Object} Updated client-ready decisionRecord summary.
+ */
+function registerIssuedAiSuggestions_(issuedItems, activeTabId) {
+  const validItems = Array.isArray(issuedItems) ? issuedItems.filter(it => it && it.suggestionId) : [];
+  let lock = null;
+  try {
+    lock = LockService.getDocumentLock();
+    if (lock) lock.tryLock(2500);
+  } catch (e) {}
+
+  try {
+    const record = loadRawDecisionRecord_();
+    if (validItems.length === 0) {
+      return buildClientDecisionRecordSummary_(record);
+    }
+
+    const runId = 'run_' + Date.now();
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.now();
+
+    record.lastRun = {
+      runId: runId,
+      timestamp: nowIso,
+      issued: validItems.length,
+      accepted: 0,
+      edited: 0,
+      rejected: 0,
+      expired: 0
+    };
+
+    record.cumulative.issued += validItems.length;
+
+    const existingIds = new Set(record.pending.map(p => p.sId));
+    validItems.forEach(it => {
+      if (existingIds.has(it.suggestionId)) return;
+      existingIds.add(it.suggestionId);
+      record.pending.push({
+        sId: String(it.suggestionId),
+        runId: runId,
+        tabId: String(it.tabId || activeTabId || ''),
+        cat: normalizeDecisionText_(it.category || 'Revision', 24),
+        orig: normalizeDecisionText_(it.originalText || '', DECISION_TEXT_SIG_LIMIT),
+        sug: normalizeDecisionText_(it.suggestedText || '', DECISION_TEXT_SIG_LIMIT),
+        ctxBefore: normalizeDecisionText_(it.ctxBefore || '', DECISION_ANCHOR_LIMIT),
+        ctxAfter: normalizeDecisionText_(it.ctxAfter || '', DECISION_ANCHOR_LIMIT),
+        ts: nowMs
+      });
+    });
+
+    saveRawDecisionRecord_(record);
+    return buildClientDecisionRecordSummary_(record, {
+      activeAiSuggestionsCount: record.pending.length
+    });
+  } finally {
+    if (lock) {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
+}
+
+/**
+ * Updates the Decision Record immediately when the user triggers bulk Accept All or Reject All
+ * from the Quick Canvas Cleanup toolbar. Strictly updates only AI-issued pending items.
+ *
+ * @param {Array<string>} actionedSuggestionIds Suggestion IDs that were bulk accepted or rejected.
+ * @param {string} explicitDecision Either 'ACCEPTED' or 'REJECTED'.
+ * @return {Object} Updated client-ready decisionRecord summary.
+ */
+function recordBulkSuggestionDecision_(actionedSuggestionIds, explicitDecision) {
+  const idSet = new Set(Array.isArray(actionedSuggestionIds) ? actionedSuggestionIds : []);
+  let lock = null;
+  try {
+    lock = LockService.getDocumentLock();
+    if (lock) lock.tryLock(2500);
+  } catch (e) {}
+
+  try {
+    const record = loadRawDecisionRecord_();
+    if (record.pending.length === 0 || idSet.size === 0) {
+      return buildClientDecisionRecordSummary_(record);
+    }
+
+    const stillPending = [];
+    let mutated = false;
+
+    record.pending.forEach(item => {
+      if (!item || !item.sId) return;
+      if (idSet.has(item.sId)) {
+        mutated = true;
+        if (explicitDecision === 'ACCEPTED') {
+          record.cumulative.accepted++;
+          if (item.runId && item.runId === record.lastRun.runId) record.lastRun.accepted++;
+        } else {
+          record.cumulative.rejected++;
+          if (item.runId && item.runId === record.lastRun.runId) record.lastRun.rejected++;
+        }
+        record.recentDecisions.unshift({
+          sId: item.sId,
+          status: explicitDecision === 'ACCEPTED' ? 'ACCEPTED' : 'REJECTED',
+          cat: normalizeDecisionText_(item.cat || 'Revision', 24),
+          origSnippet: normalizeDecisionText_(item.orig, DECISION_SNIPPET_LIMIT),
+          sugSnippet: normalizeDecisionText_(item.sug, DECISION_SNIPPET_LIMIT),
+          finalSnippet: normalizeDecisionText_(
+            explicitDecision === 'ACCEPTED' ? (item.sug || item.orig) : item.orig,
+            DECISION_SNIPPET_LIMIT
+          ),
+          decidedAt: new Date().toISOString()
+        });
+      } else {
+        stillPending.push(item);
+      }
+    });
+
+    record.pending = stillPending;
+    if (mutated) {
+      saveRawDecisionRecord_(record);
+    }
+    return buildClientDecisionRecordSummary_(record, {
+      activeAiSuggestionsCount: stillPending.length
+    });
+  } finally {
+    if (lock) {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
+}
+
+/**
+ * Explicitly resets (clears) the Coach Decision Record in DocumentProperties
+ * when the user clicks "↺ Reset Record" in the sidebar (without touching API Key or RAG settings).
+ *
+ * @param {string=} lang Current UI language ('en' or 'ja').
+ * @return {Object} `{ success: boolean, decisionRecord: Object, message: string }`
+ */
+function resetDecisionRecord(lang) {
+  const isJa = lang === 'ja';
+  let lock = null;
+  try {
+    lock = LockService.getDocumentLock();
+    if (lock) lock.tryLock(2500);
+  } catch (e) {}
+
+  try {
+    const docProps = PropertiesService.getDocumentProperties();
+    if (docProps) {
+      docProps.deleteProperty(PROP_KEY_DECISION_RECORD);
+    }
+  } catch (e) {} finally {
+    if (lock) {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
+
+  const freshRecord = buildClientDecisionRecordSummary_(createEmptyDecisionRecord_(), {
+    activeAiSuggestionsCount: 0,
+    activeHumanSuggestionsCount: 0
+  });
+
+  return {
+    success: true,
+    decisionRecord: freshRecord,
+    message: isJa
+      ? '↺ AIコーチの決定記録（Decision Record）をリセットしました。'
+      : '↺ Reset the Coach Decision Record statistics for this document.'
   };
 }
 
@@ -2386,6 +3197,7 @@ function executeAcceptAllFromReloaded(reloadedSuggestionIds, lang) {
     return {
       success: true,
       count: 0,
+      decisionRecord: buildClientDecisionRecordSummary_(loadRawDecisionRecord_()),
       message: lang === 'ja'
         ? '承認待ちの提案はありませんでした。'
         : 'No pending suggestions found to accept.'
@@ -2397,10 +3209,12 @@ function executeAcceptAllFromReloaded(reloadedSuggestionIds, lang) {
   }));
 
   executeSuggestionActionRequestsSafely_(docId, requests);
+  const updatedDecisionRecord = recordBulkSuggestionDecision_(suggestionIds, 'ACCEPTED');
 
   return {
     success: true,
     count: suggestionIds.length,
+    decisionRecord: updatedDecisionRecord,
     message: lang === 'ja'
       ? `✅ 現在の提案を再読み込みし、${suggestionIds.length} 件の提案をすべて承認しました！`
       : `✅ Reloaded current suggestions and accepted all ${suggestionIds.length} suggestion(s)!`
@@ -2429,6 +3243,7 @@ function executeClearAllFromReloaded(reloadedSuggestionIds, lang) {
     return {
       success: true,
       count: 0,
+      decisionRecord: buildClientDecisionRecordSummary_(loadRawDecisionRecord_()),
       message: lang === 'ja'
         ? 'クリア対象の提案はありませんでした。'
         : 'No pending suggestions found to clear.'
@@ -2438,10 +3253,12 @@ function executeClearAllFromReloaded(reloadedSuggestionIds, lang) {
   const requests = suggestionIds.map(id => ({ rejectSuggestion: { suggestionId: id } }));
 
   executeSuggestionActionRequestsSafely_(docId, requests);
+  const updatedDecisionRecord = recordBulkSuggestionDecision_(suggestionIds, 'REJECTED');
 
   return {
     success: true,
     count: suggestionIds.length,
+    decisionRecord: updatedDecisionRecord,
     message: lang === 'ja'
       ? `🧹 現在の提案を再読み込みし、${suggestionIds.length} 件の提案をすべてクリアしました！`
       : `🧹 Reloaded current suggestions and cleared all ${suggestionIds.length} suggestion(s)!`
@@ -3970,6 +4787,8 @@ function step3_buildRequestBody(docData, aiResult, lang, hintOnly) {
     if (!orig || (!isHintOnly && orig === repl)) return;
 
     let foundRange = null;
+    let ctxBefore = '';
+    let ctxAfter = '';
 
     for (let b = 0; b < editableBlocks.length; b++) {
       const block = editableBlocks[b];
@@ -3985,6 +4804,8 @@ function step3_buildRequestBody(docData, aiResult, lang, hintOnly) {
         const isOverlapping = usedRanges.some(r => !(absEnd <= r.startIndex || absStart >= r.endIndex));
         if (!isOverlapping) {
           foundRange = { startIndex: absStart, endIndex: absEnd };
+          ctxBefore = block.text.slice(Math.max(0, pos - DECISION_ANCHOR_LIMIT), pos);
+          ctxAfter = block.text.slice(pos + orig.length, pos + orig.length + DECISION_ANCHOR_LIMIT);
           usedRanges.push(foundRange);
           break;
         }
@@ -4003,6 +4824,8 @@ function step3_buildRequestBody(docData, aiResult, lang, hintOnly) {
         learningPoint: sug.learningPoint || '',
         startIndex: foundRange.startIndex,
         endIndex: foundRange.endIndex,
+        ctxBefore: ctxBefore,
+        ctxAfter: ctxAfter,
         tabId: activeTabId,
         hintOnly: isHintOnly
       });
@@ -4132,6 +4955,7 @@ function step4_applySuggestions(builtData, lang) {
 
   const docId = DocumentApp.getActiveDocument().getId();
   const suggestionReplyRequests = [];
+  const issuedAiSuggestionsForRecord = [];
 
   // Phase 1: Apply either Hint-Only anchored comments (insertComment) OR inline text suggestions (WriteMode.SUGGEST + addCommentReply)
   if (textItems.length > 0) {
@@ -4162,7 +4986,7 @@ function step4_applySuggestions(builtData, lang) {
       const suggestionResponses = suggestResJson.suggestionResponses || [];
       let reqCursor = 0;
 
-      textItems.forEach(item => {
+      textItems.forEach((item, idx) => {
         const numReqsForItem = item.suggestedText.length > 0 ? 2 : 1;
         let foundSuggestionId = null;
 
@@ -4200,12 +5024,29 @@ function step4_applySuggestions(builtData, lang) {
             }
           });
         }
+
+        issuedAiSuggestionsForRecord.push({
+          suggestionId: foundSuggestionId || `ai_sug_${Date.now()}_${idx + 1}`,
+          category: item.category || 'Revision',
+          originalText: item.originalText || '',
+          suggestedText: item.suggestedText || '',
+          ctxBefore: item.ctxBefore || '',
+          ctxAfter: item.ctxAfter || '',
+          tabId: item.tabId || activeTabId
+        });
       });
 
       if (suggestionReplyRequests.length > 0) {
         executeSuggestionActionRequestsSafely_(docId, suggestionReplyRequests);
       }
     }
+  }
+
+  let updatedDecisionRecord = null;
+  if (!isHintOnly && issuedAiSuggestionsForRecord.length > 0) {
+    updatedDecisionRecord = registerIssuedAiSuggestions_(issuedAiSuggestionsForRecord, activeTabId);
+  } else {
+    updatedDecisionRecord = buildClientDecisionRecordSummary_(loadRawDecisionRecord_());
   }
 
   // Phase 2: Create Google Docs Comments (insertComment) for Figures/Charts (VISUAL_1) and Tables (TABLE_1).
@@ -4226,6 +5067,9 @@ function step4_applySuggestions(builtData, lang) {
         (freshParsed.visualElements || []).forEach(v => { freshElementMap[v.targetId] = v; });
         (freshParsed.tables || []).forEach(t => { freshElementMap[t.targetId] = t; });
         freshBlocks = freshParsed.editableBlocks || [];
+        if (freshParsed.decisionRecord) {
+          updatedDecisionRecord = freshParsed.decisionRecord;
+        }
       } catch (e) {
         // Fallback to pre-Phase-1 coordinates if re-fetch fails
       }
@@ -4285,7 +5129,8 @@ function step4_applySuggestions(builtData, lang) {
     hintOnly: isHintOnly,
     appliedSuggestionsCount: textItems.length + elementItems.length,
     appliedTextSuggestionsCount: textItems.length,
-    appliedElementCommentsCount: appliedElementCommentsCount
+    appliedElementCommentsCount: appliedElementCommentsCount,
+    decisionRecord: updatedDecisionRecord
   };
 }
 
@@ -4766,14 +5611,29 @@ function buildLearningSummaryDialogHtml_(summaryPayload, isJa) {
         : (isJa ? '🛠️ どのような修正を行ったか' : '🛠️ What Was Revised'));
   const lblWeakness = isJa ? '🔍 苦手なところ・修正すべき傾向' : '🔍 Areas for Improvement & Writing Habits';
   const lblTips = isJa ? '🌱 今後の執筆に向けた学習アドバイス' : '🌱 Actionable Advice for Future Writing';
+  const lblDecisionTitle = isJa ? '📈 AI推敲コーチの採否・編集記録 (Decision Record)' : '📈 Coach Impact & Decision Record';
+
+  const dr = summaryPayload.decisionRecord || buildClientDecisionRecordSummary_(loadRawDecisionRecord_());
+  const drCum = (dr && dr.cumulative) ? dr.cumulative : { issued: 0, accepted: 0, edited: 0, rejected: 0, decided: 0, impactRate: null };
+  const drPending = Number((dr && dr.pendingAiCount) || 0);
+  const hasDrActivity = (drCum.decided > 0 || drPending > 0 || drCum.issued > 0);
+
+  let decisionRecordSummaryLine = '';
+  if (hasDrActivity) {
+    const rateText = drCum.impactRate !== null ? `${drCum.impactRate}%` : (isJa ? '集計待ち' : 'Pending Review');
+    decisionRecordSummaryLine = isJa
+      ? `ドラフト改善貢献率: ${rateText} （✅ 採用: ${drCum.accepted}件 / ✏️ 手動編集: ${drCum.edited}件 / ❌ 却下: ${drCum.rejected}件 / ⏳ 未決レビュー待ち: ${drPending}件）`
+      : `Draft Improvement Rate: ${rateText} (✅ Accepted: ${drCum.accepted} | ✏️ Edited: ${drCum.edited} | ❌ Rejected: ${drCum.rejected} | ⏳ Pending Review: ${drPending})`;
+  }
 
   const btnCopyLabel = isJa ? '📋 クリップボードにコピー' : '📋 Copy to Clipboard';
   const btnCopiedLabel = isJa ? '✅ コピーしました！' : '✅ Copied to Clipboard!';
   const btnCloseLabel = isJa ? '閉じる' : 'Close';
 
-  const plainTextForCopy = isJa
+  const copySections = isJa
     ? [
         `【${lblHeaderTitle} (${APP_NAME} ${APP_VERSION})】`,
+        ...(decisionRecordSummaryLine ? [``, `■ ${lblDecisionTitle}`, decisionRecordSummaryLine] : []),
         ``,
         `■ ${lblOverall}`,
         overallFeedback,
@@ -4786,9 +5646,10 @@ function buildLearningSummaryDialogHtml_(summaryPayload, isJa) {
         ``,
         `■ ${lblTips}`,
         actionableTips
-      ].join('\n')
+      ]
     : [
         `[${lblHeaderTitle} (${APP_NAME} ${APP_VERSION})]`,
+        ...(decisionRecordSummaryLine ? [``, `■ ${lblDecisionTitle}`, decisionRecordSummaryLine] : []),
         ``,
         `■ ${lblOverall}`,
         overallFeedback,
@@ -4801,7 +5662,8 @@ function buildLearningSummaryDialogHtml_(summaryPayload, isJa) {
         ``,
         `■ ${lblTips}`,
         actionableTips
-      ].join('\n');
+      ];
+  const plainTextForCopy = copySections.join('\n');
 
   return `<!DOCTYPE html>
 <html>
@@ -4942,6 +5804,12 @@ function buildLearningSummaryDialogHtml_(summaryPayload, isJa) {
   </div>
 
   <div class="content-scroll">
+    ${decisionRecordSummaryLine ? `
+    <div class="advice-block" style="border-color: rgba(16, 185, 129, 0.35); background: rgba(6, 78, 59, 0.22);">
+      <span class="block-title" style="color: #6ee7b7;">${escapeHtmlServer_(lblDecisionTitle)}</span>
+      <div class="block-text" style="font-size: 12px; color: #d1fae5;">${escapeHtmlServer_(decisionRecordSummaryLine)}</div>
+    </div>` : ''}
+
     ${overallFeedback ? `
     <div class="advice-block">
       <span class="block-title overall">${escapeHtmlServer_(lblOverall)}</span>

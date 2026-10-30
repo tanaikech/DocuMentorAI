@@ -641,6 +641,135 @@
     .btn-clear-comments:hover:not(:disabled) { background: rgba(245, 158, 11, 0.28); color: #fff; }
     .btn-sm { width: auto; padding: 6px 10px; font-size: 11px; flex-shrink: 0; }
 
+    /* Coach Impact & Decision Record Widget (v1.0.5) */
+    .decision-record-box {
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.2);
+    }
+    .decision-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .decision-title {
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+    }
+    .btn-reset-decision {
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      color: #cbd5e1;
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-size: 9.2px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+    .btn-reset-decision:hover:not(:disabled) {
+      background: rgba(244, 63, 94, 0.18);
+      border-color: rgba(244, 63, 94, 0.45);
+      color: #fecdd3;
+    }
+    .decision-pills-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .decision-pill {
+      background: rgba(11, 15, 25, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 6px;
+      padding: 4px 3px;
+      text-align: center;
+    }
+    .decision-pill.accepted { border-color: rgba(16, 185, 129, 0.38); }
+    .decision-pill.edited { border-color: rgba(6, 182, 212, 0.38); }
+    .decision-pill.rejected { border-color: rgba(244, 63, 94, 0.35); }
+    .decision-pill.pending { border-color: rgba(99, 102, 241, 0.35); }
+    .decision-pill-val {
+      font-size: 11.5px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .decision-pill.accepted .decision-pill-val { color: #34d399; }
+    .decision-pill.edited .decision-pill-val { color: #38bdf8; }
+    .decision-pill.rejected .decision-pill-val { color: #fb7185; }
+    .decision-pill.pending .decision-pill-val { color: #a5b4fc; }
+    .decision-pill-lbl {
+      font-size: 8.3px;
+      color: var(--text-muted);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .decision-verdict-bar {
+      font-size: 9.8px;
+      line-height: 1.4;
+      padding: 5.5px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(15, 23, 42, 0.65);
+      color: #cbd5e1;
+      margin-bottom: 4px;
+    }
+    .decision-verdict-bar.improving {
+      background: rgba(16, 185, 129, 0.13);
+      border-color: rgba(16, 185, 129, 0.42);
+      color: #d1fae5;
+    }
+    .decision-verdict-bar.balanced {
+      background: rgba(6, 182, 212, 0.13);
+      border-color: rgba(6, 182, 212, 0.4);
+      color: #cffafe;
+    }
+    .decision-verdict-bar.overhead {
+      background: rgba(245, 158, 11, 0.14);
+      border-color: rgba(245, 158, 11, 0.45);
+      color: #fde68a;
+    }
+    .decision-human-note {
+      display: none;
+      font-size: 9px;
+      color: #94a3b8;
+      padding: 3px 6px;
+      background: rgba(30, 41, 59, 0.55);
+      border-radius: 4px;
+      margin-bottom: 4px;
+    }
+    details.decision-log-details {
+      background: rgba(11, 15, 25, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 6px;
+      padding: 4px 7px;
+      font-size: 9.5px;
+    }
+    details.decision-log-details summary {
+      cursor: pointer;
+      color: #93c5fd;
+      font-weight: 600;
+      user-select: none;
+    }
+    .decision-log-list {
+      margin-top: 5px;
+      max-height: 125px;
+      overflow-y: auto;
+      color: #cbd5e1;
+    }
+    .decision-log-item {
+      padding: 4px 0;
+      border-bottom: 1px dashed rgba(148, 163, 184, 0.16);
+      line-height: 1.35;
+    }
+    .decision-log-item:last-child { border-bottom: none; }
+
     .empty-doc-banner {
       display: none; background: rgba(245, 158, 11, 0.12);
       border: 1px solid rgba(245, 158, 11, 0.4); border-radius: var(--radius-sm);
@@ -793,7 +922,7 @@
       <div class="brand-icon">✦</div>
       <div>
         <span class="brand-title">DocuMentor AI <span class="brand-info-dot">ⓘ</span></span>
-        <span id="brandSub" class="brand-sub">v1.0.4 • AI Proofreading &amp; RAG Coach</span>
+        <span id="brandSub" class="brand-sub">v1.0.5 • AI Proofreading &amp; RAG Coach</span>
       </div>
     </div>
     <div class="header-right">
@@ -969,6 +1098,46 @@
         <span id="lblBtnClearAllComments">🗑️ Comments</span>
       </button>
     </div>
+
+    <!-- Coach Impact & Decision Record Widget (v1.0.5) -->
+    <div id="decisionRecordBox" class="decision-record-box">
+      <div class="decision-header">
+        <span id="lblDecisionTitle" class="decision-title">📈 Coach Impact &amp; Decision Record</span>
+        <button type="button" id="btnResetDecisionRecord" class="btn-reset-decision" onclick="handleResetDecisionRecord()" title="Reset Coach Decision Record statistics for this document">
+          <span id="lblBtnResetDecisionRecord">↺ Reset</span>
+        </button>
+      </div>
+
+      <div class="decision-pills-grid">
+        <div class="decision-pill accepted" title="AI suggestions accepted verbatim">
+          <div id="valDecAccepted" class="decision-pill-val">0</div>
+          <div id="lblDecAccepted" class="decision-pill-lbl">✅ Accepted</div>
+        </div>
+        <div class="decision-pill edited" title="AI suggestions edited/adapted by author">
+          <div id="valDecEdited" class="decision-pill-val">0</div>
+          <div id="lblDecEdited" class="decision-pill-lbl">✏️ Edited</div>
+        </div>
+        <div class="decision-pill rejected" title="AI suggestions rejected">
+          <div id="valDecRejected" class="decision-pill-val">0</div>
+          <div id="lblDecRejected" class="decision-pill-lbl">❌ Rejected</div>
+        </div>
+        <div class="decision-pill pending" title="Active AI suggestions awaiting your decision">
+          <div id="valDecPending" class="decision-pill-val">0</div>
+          <div id="lblDecPending" class="decision-pill-lbl">⏳ Pending</div>
+        </div>
+      </div>
+
+      <div id="decisionVerdictBar" class="decision-verdict-bar">
+        ℹ️ No AI suggestion decisions recorded yet. Run proofreading, then accept, edit, or reject suggestions on the canvas and click Sync.
+      </div>
+
+      <div id="decisionHumanNote" class="decision-human-note"></div>
+
+      <details id="decisionLogDetails" class="decision-log-details" style="display: none;">
+        <summary id="lblDecisionLogSummary">📜 View Recent Decision Log &amp; Last Run</summary>
+        <div id="decisionLogList" class="decision-log-list"></div>
+      </details>
+    </div>
   </div>
 
   <!-- Quick Re-open Button for the Learning Summary Custom Dialog -->
@@ -1040,7 +1209,7 @@
 
   <!-- Footer -->
   <div class="app-footer">
-    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.4 • Created by Kanshi Tanaike
+    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.5 • Created by Kanshi Tanaike
   </div>
 
   <script>
@@ -1053,10 +1222,11 @@
     let currentRagFilesPreview = [];
     let isDocEmptyState = false;
     let latestLearningSummaryPayload = null;
+    let latestDecisionRecord = null;
 
     const I18N = {
       en: {
-        brandSub: 'v1.0.4 • AI Proofreading & RAG Coach',
+        brandSub: 'v1.0.5 • AI Proofreading & RAG Coach',
         brandTooltip: 'Click to view Developer, GitHub Repository & Version info',
         settingsTitle: '⚙️ Engine, API Key & Drive RAG',
         closeSettings: 'Close ✕',
@@ -1119,6 +1289,23 @@
         btnAcceptAll: '✅ Accept',
         btnClearAll: '🧹 Reject',
         btnClearAllComments: '🗑️ Comments',
+        decisionTitle: '📈 Coach Impact & Decision Record',
+        btnResetDecisionRecord: '↺ Reset',
+        btnResetDecisionTooltip: 'Reset Coach Decision Record statistics for this document (keeps API Key & RAG settings)',
+        decAccepted: '✅ Accepted',
+        decEdited: '✏️ Edited',
+        decRejected: '❌ Rejected',
+        decPending: '⏳ Pending',
+        decisionVerdicts: {
+          noData: 'ℹ️ No AI suggestion decisions recorded yet. Run proofreading, then accept, edit, or reject suggestions on the canvas and click Sync.',
+          awaitingReview: pending => `⏳ <strong>${pending} AI suggestion(s) awaiting your decision.</strong> Accept, edit, or reject them in Google Docs, then click <strong>🔄 Sync Doc</strong> to update impact stats.`,
+          improvingDraft: (rate, acc, edt, rej) => `🟢 <strong>${rate}% Draft Improvement Rate (${acc + edt}/${acc + edt + rej}):</strong> The coach is effectively improving your draft (${acc} accepted, ${edt} author-edited, ${rej} rejected).`,
+          balancedReview: (rate, acc, edt, rej) => `🟡 <strong>${rate}% Draft Improvement Rate (${acc + edt}/${acc + edt + rej}):</strong> Moderate utility (${acc} accepted, ${edt} edited, ${rej} rejected). Refine custom instructions to reduce review overhead.`,
+          highReviewWork: (rate, acc, edt, rej) => `🟠 <strong>${rate}% Improvement Rate (${rej}/${acc + edt + rej} rejected):</strong> High review work detected. Consider switching to <strong>💡 Hint-Only Mode</strong> or adding specific RAG/prompt rules.`
+        },
+        decisionHumanNote: count => `👤 ${count} pre-existing/human suggestion(s) detected on canvas (strictly excluded from AI Coach metrics).`,
+        decisionLogSummary: (decCount, lastIssued) => `📜 View Recent Decision Log (${decCount}) & Last Run (${lastIssued} issued)`,
+        decisionLastRunHeader: (issued, acc, edt, rej) => `Last Run: ${issued} issued ➔ ✅ ${acc} Accepted | ✏️ ${edt} Edited | ❌ ${rej} Rejected`,
         btnSyncResetView: '🔄 Sync Doc & Reset View',
         btnSyncResetViewTooltip: 'Keeps your Model, API Key & RAG settings, resets the sidebar view, and reloads the current Google Doc\'s suggestions, comments & history',
         btnOpenLearningDialog: '📖 Re-open Latest Learning Summary Dialog',
@@ -1201,7 +1388,7 @@
         }
       },
       ja: {
-        brandSub: 'v1.0.4 • AI推敲＆RAG学習コーチ',
+        brandSub: 'v1.0.5 • AI推敲＆RAG学習コーチ',
         brandTooltip: 'クリックして開発者・GitHubリポジトリ・バージョン情報を表示',
         settingsTitle: '⚙️ AIエンジン・APIキー・Drive RAG設定',
         closeSettings: '閉じる ✕',
@@ -1264,6 +1451,23 @@
         btnAcceptAll: '✅ 全承認',
         btnClearAll: '🧹 全却下',
         btnClearAllComments: '🗑️ コメント削除',
+        decisionTitle: '📈 AI提案の採否・編集記録 (Decision Record)',
+        btnResetDecisionRecord: '↺ リセット',
+        btnResetDecisionTooltip: 'このドキュメントのAI決定記録（統計）をリセットします（APIキー・RAG設定は維持されます）',
+        decAccepted: '✅ 採用',
+        decEdited: '✏️ 手動編集',
+        decRejected: '❌ 却下',
+        decPending: '⏳ 未決',
+        decisionVerdicts: {
+          noData: 'ℹ️ AI提案の決定記録はまだありません。推敲を実行し、提案を承認・編集・却下した後に「🔄 再読込」を押すと集計されます。',
+          awaitingReview: pending => `⏳ <strong>現在 ${pending} 件のAI提案がレビュー待ちです。</strong> ドキュメント上で承認・手動編集・却下した後、<strong>「🔄 再読込」</strong>を押すと改善貢献度が更新されます。`,
+          improvingDraft: (rate, acc, edt, rej) => `🟢 <strong>ドラフト改善貢献率 ${rate}% (${acc + edt}/${acc + edt + rej}件):</strong> AIコーチが原稿の改善に効果的に貢献しています（採用: ${acc} / 手動編集: ${edt} / 却下: ${rej}）。`,
+          balancedReview: (rate, acc, edt, rej) => `🟡 <strong>ドラフト改善貢献率 ${rate}% (${acc + edt}/${acc + edt + rej}件):</strong> 一定の改善効果がありますが、一部レビューの手間が発生しています（採用: ${acc} / 手動編集: ${edt} / 却下: ${rej}）。`,
+          highReviewWork: (rate, acc, edt, rej) => `🟠 <strong>改善貢献率 ${rate}% (${rej}/${acc + edt + rej}件が却下):</strong> レビュー作業の負担が増えています。<strong>「💡 ヒントのみ表示」</strong>への切替やカスタム指示・RAGの調整を推奨します。`
+        },
+        decisionHumanNote: count => `👤 既存の人間による手動提案 (${count}件) を検出（AIコーチの評価指標からは厳格に除外されています）。`,
+        decisionLogSummary: (decCount, lastIssued) => `📜 直近の決定ログ (${decCount}件) ＆ 最新セッション (${lastIssued}件発行)`,
+        decisionLastRunHeader: (issued, acc, edt, rej) => `最新セッション: ${issued}件発行 ➔ ✅ 採用 ${acc} | ✏️ 編集 ${edt} | ❌ 却下 ${rej}`,
         btnSyncResetView: '🔄 表示リセット＆現在のDoc状態を再読込',
         btnSyncResetViewTooltip: 'モデル・APIキー・RAG設定を維持したままUI表示をリセットし、現在のGoogleドキュメントの提案・コメント・履歴を再読込します',
         btnOpenLearningDialog: '📖 直前の学習アドバイスまとめを再表示',
@@ -1413,7 +1617,8 @@
         learningSummary: aiResult.learningSummary,
         overallFeedback: aiResult.overallFeedback || '',
         modelUsed: aiResult.modelUsed || '',
-        appliedCount: Number(appliedCount || 0)
+        appliedCount: Number(appliedCount || 0),
+        decisionRecord: latestDecisionRecord || null
       };
 
       const btnReopen = document.getElementById('btnOpenLearningDialog');
@@ -1428,6 +1633,9 @@
 
     function reopenLearningSummaryDialog() {
       if (!latestLearningSummaryPayload) return;
+      if (latestDecisionRecord) {
+        latestLearningSummaryPayload.decisionRecord = latestDecisionRecord;
+      }
       google.script.run
         .withFailureHandler(showError)
         .showLearningSummaryDialog(latestLearningSummaryPayload, currentLang);
@@ -1471,6 +1679,13 @@
       document.getElementById('lblPromptAccordionSummary').textContent = t.promptAccordionSummary;
       document.getElementById('promptActiveBadge').textContent = t.promptActiveBadge;
       document.getElementById('lblCleanupToolbar').textContent = t.cleanupToolbarLabel;
+      document.getElementById('lblDecisionTitle').textContent = t.decisionTitle;
+      document.getElementById('lblBtnResetDecisionRecord').textContent = t.btnResetDecisionRecord;
+      document.getElementById('btnResetDecisionRecord').title = t.btnResetDecisionTooltip;
+      document.getElementById('lblDecAccepted').textContent = t.decAccepted;
+      document.getElementById('lblDecEdited').textContent = t.decEdited;
+      document.getElementById('lblDecRejected').textContent = t.decRejected;
+      document.getElementById('lblDecPending').textContent = t.decPending;
 
       updateApiKeyUi(currentHasApiKey, currentApiKeySource);
       updateRagFolderUi(currentHasRagFolder, currentRagFolderSource, currentRagFolderId, currentRagFilesPreview);
@@ -1479,6 +1694,7 @@
       updateResolvedToggleUi();
       updateLiveScopeSummary();
       updatePromptActiveBadge();
+      renderDecisionRecordUi(latestDecisionRecord);
 
       document.getElementById('emptyDocBanner').innerHTML = t.emptyBanner;
       document.getElementById('lblCustomPrompt').textContent = t.customPromptLabel;
@@ -1510,6 +1726,112 @@
       for (let i = 1; i <= 4; i++) {
         document.getElementById('stepTitle' + i).textContent = t.stepTitles[i];
       }
+    }
+
+    /**
+     * Renders the Coach Impact & Decision Record widget in the sidebar.
+     * Displays Accepted, Edited, Rejected, and Pending AI counts, Coach Impact Verdict,
+     * pre-existing human suggestion separation notice, and recent decision log.
+     */
+    function renderDecisionRecordUi(decisionRecord) {
+      if (decisionRecord) {
+        latestDecisionRecord = decisionRecord;
+      }
+      const dr = latestDecisionRecord || {};
+      const cum = dr.cumulative || { issued: 0, accepted: 0, edited: 0, rejected: 0, decided: 0, impactRate: null };
+      const lr = dr.lastRun || { issued: 0, accepted: 0, edited: 0, rejected: 0 };
+      const pendingAi = Number(dr.pendingAiCount || 0);
+      const humanCount = Number(dr.activeHumanSuggestionsCount || 0);
+      const recentList = Array.isArray(dr.recentDecisions) ? dr.recentDecisions : [];
+      const t = I18N[currentLang];
+
+      document.getElementById('valDecAccepted').textContent = String(cum.accepted || 0);
+      document.getElementById('valDecEdited').textContent = String(cum.edited || 0);
+      document.getElementById('valDecRejected').textContent = String(cum.rejected || 0);
+      document.getElementById('valDecPending').textContent = String(pendingAi);
+
+      const verdictEl = document.getElementById('decisionVerdictBar');
+      verdictEl.classList.remove('improving', 'balanced', 'overhead');
+
+      const vState = dr.verdictState || 'NO_DATA';
+      if (vState === 'IMPROVING_DRAFT') {
+        verdictEl.classList.add('improving');
+        verdictEl.innerHTML = t.decisionVerdicts.improvingDraft(cum.impactRate, cum.accepted, cum.edited, cum.rejected);
+      } else if (vState === 'BALANCED_REVIEW') {
+        verdictEl.classList.add('balanced');
+        verdictEl.innerHTML = t.decisionVerdicts.balancedReview(cum.impactRate, cum.accepted, cum.edited, cum.rejected);
+      } else if (vState === 'HIGH_REVIEW_WORK') {
+        verdictEl.classList.add('overhead');
+        verdictEl.innerHTML = t.decisionVerdicts.highReviewWork(cum.impactRate, cum.accepted, cum.edited, cum.rejected);
+      } else if (vState === 'AWAITING_REVIEW') {
+        verdictEl.innerHTML = t.decisionVerdicts.awaitingReview(pendingAi);
+      } else {
+        verdictEl.innerHTML = t.decisionVerdicts.noData;
+      }
+
+      const humanNoteEl = document.getElementById('decisionHumanNote');
+      if (humanCount > 0) {
+        humanNoteEl.style.display = 'block';
+        humanNoteEl.textContent = t.decisionHumanNote(humanCount);
+      } else {
+        humanNoteEl.style.display = 'none';
+        humanNoteEl.textContent = '';
+      }
+
+      const logDetailsEl = document.getElementById('decisionLogDetails');
+      const logSummaryEl = document.getElementById('lblDecisionLogSummary');
+      const logListEl = document.getElementById('decisionLogList');
+
+      if (recentList.length > 0 || lr.issued > 0) {
+        logDetailsEl.style.display = 'block';
+        logSummaryEl.textContent = t.decisionLogSummary(recentList.length, lr.issued || 0);
+
+        let logHtml = '';
+        if (lr.issued > 0) {
+          logHtml += `<div style="padding:3px 5px; margin-bottom:4px; background:rgba(99,102,241,0.14); border-radius:4px; color:#c7d2fe; font-weight:600;">${escapeHtml(t.decisionLastRunHeader(lr.issued, lr.accepted || 0, lr.edited || 0, lr.rejected || 0))}</div>`;
+        }
+        recentList.forEach((item, idx) => {
+          const st = item.status || 'ACCEPTED';
+          const badgeColor = st === 'ACCEPTED' ? '#34d399' : (st === 'EDITED' ? '#38bdf8' : '#fb7185');
+          const badgeIcon = st === 'ACCEPTED' ? '✅' : (st === 'EDITED' ? '✏️' : '❌');
+          const origStr = item.origSnippet || '(None)';
+          const finalStr = item.finalSnippet || item.sugSnippet || '';
+          logHtml += `
+            <div class="decision-log-item">
+              <div><strong style="color:${badgeColor};">${badgeIcon} ${escapeHtml(st)}</strong> <span style="color:#94a3b8;">[${escapeHtml(item.cat || 'Revision')}]</span></div>
+              <div style="margin-top:1px;"><span class="diff-del">${escapeHtml(origStr)}</span> ➔ <span class="diff-ins">${escapeHtml(finalStr)}</span></div>
+            </div>
+          `;
+        });
+        logListEl.innerHTML = logHtml;
+      } else {
+        logDetailsEl.style.display = 'none';
+        logDetailsEl.open = false;
+        logListEl.innerHTML = '';
+      }
+    }
+
+    /**
+     * Resets the Coach Decision Record in DocumentProperties without affecting API Key or RAG settings.
+     */
+    function handleResetDecisionRecord() {
+      clearAlerts();
+      setBusy(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          setBusy(false);
+          if (res && res.decisionRecord) {
+            renderDecisionRecordUi(res.decisionRecord);
+          }
+          if (res && res.message) {
+            showInfo(res.message);
+          }
+        })
+        .withFailureHandler(err => {
+          setBusy(false);
+          showError(err);
+        })
+        .resetDecisionRecord(currentLang);
     }
 
     function updateLiveScopeSummary() {
@@ -1877,6 +2199,9 @@
           google.script.run
             .withSuccessHandler(res => {
               setBusy(false);
+              if (res && res.decisionRecord) {
+                renderDecisionRecordUi(res.decisionRecord);
+              }
               setStepStatus(4, 'completed', t.states.completed, true);
               document.getElementById('stepBody4').innerHTML = `
                 <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5;">
@@ -2178,6 +2503,10 @@
       const tablesCount = (docData.tables || []).length;
       const visualsCount = (docData.visualElements || []).length;
       const ragFiles = Array.isArray(docData.ragFiles) ? docData.ragFiles : [];
+
+      if (docData.decisionRecord) {
+        renderDecisionRecordUi(docData.decisionRecord);
+      }
 
       if (docData.hasRagFolder !== undefined) {
         updateRagFolderUi(
@@ -2491,6 +2820,9 @@
      */
     function renderStep4Result(applyResult) {
       const t = I18N[currentLang];
+      if (applyResult && applyResult.decisionRecord) {
+        renderDecisionRecordUi(applyResult.decisionRecord);
+      }
       document.getElementById('stepBody4').innerHTML = `
         <div style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); border-radius: 8px; padding: 10px 11px; color: #d1fae5; line-height: 1.55;">
           ${t.step4SuccessMsg(applyResult.appliedSuggestionsCount, Boolean(applyResult.hintOnly))}
@@ -2609,6 +2941,7 @@
       document.getElementById('btnAcceptAll').disabled = isBusy;
       document.getElementById('btnClearAll').disabled = isBusy;
       document.getElementById('btnClearAllComments').disabled = isBusy;
+      document.getElementById('btnResetDecisionRecord').disabled = isBusy;
       document.getElementById('selectionOnlyToggle').disabled = isBusy;
       document.getElementById('hintOnlyToggle').disabled = isBusy;
       document.getElementById('modeTabSuggest').disabled = isBusy;
