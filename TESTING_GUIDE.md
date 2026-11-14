@@ -44,7 +44,7 @@ Verify the **Progressive Command Center** layout, the 2-row **Status Bar**, the 
 3. **Verify the Status Bar & Settings Drawer Toggle:**
    - Click the **`⚙️`** button (or click the `🔑 API` / `📚 RAG` badges) on the Status Bar.
    - **Expected Result:** The **`⚙️ Engine, API Key & Drive RAG`** drawer opens and closes directly underneath the Status Bar without overlapping the model selector.
-   - Switch the model selector at the top of the Status Bar between **`⚡ 3.8 Flash (Fast)`** and **`🧠 4 Argon (Deep)`**.
+   - Switch the model selector at the top of the Status Bar among **`⚡ 3.8 Flash (Fast)`**, **`🚀 4 Hydrogen (Fast+)`**, **`🧠 4 Argon (Deep)`**, and **`💎 4 Carbon (Frontier)`**.
 4. **Verify Bilingual (`EN` / `JA`) Switching:**
    - Click **`JA`** at the top-right corner of the header, then click **`EN`**.
    - **Expected Result:** All sidebar labels, segmented mode tabs, full-width scope rows, live scope summary bar (`📑 Full Active Tab • 💬 Active Reviews • 📚 RAG OFF`), and step descriptions switch immediately between English and Japanese without overflowing the sidebar.

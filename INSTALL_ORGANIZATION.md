@@ -99,7 +99,7 @@ Before starting the 3-step setup below, ensure the following prerequisites are m
 3. **Create a Versioned Deployment in Apps Script:**
    - At the top-right of the Apps Script editor, click **Deploy** > **New deployment**.
    - Click the gear icon ⚙️ next to *"Select type"* and choose **Add-on**.
-   - Under *New description*, type `v1.0.4` and click **Deploy**.
+   - Under *New description*, type `v1.0.6` and click **Deploy**.
    - Note the **Version number** (e.g., `1`).
 4. **Enable Required APIs in GCP Console:**
    - In the Google Cloud Console for your project, go to **APIs & Services > Library**.

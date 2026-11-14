@@ -9,17 +9,17 @@
 [![Google Docs API](https://img.shields.io/badge/Google%20Docs%20API-v1-34A853?logo=googledocs&logoColor=white)](https://developers.google.com/workspace/docs/api/how-tos/suggestions)
 [![Google Drive API](https://img.shields.io/badge/Google%20Drive%20API-v3%20RAG-FBBC04?logo=googledrive&logoColor=white)](https://developers.google.com/drive/api)
 [![Gemini API](https://img.shields.io/badge/Gemini%20API-Multimodal-8E75B2?logo=googlegemini&logoColor=white)](https://ai.google.dev/)
-[![Version](https://img.shields.io/badge/Version-v1.0.5-10b981.svg)](https://github.com/tanaikech/DocuMentorAI)
+[![Version](https://img.shields.io/badge/Version-v1.0.6-10b981.svg)](https://github.com/tanaikech/DocuMentorAI)
 
 ---
 
 ## Overview
 
-**DocuMentor AI (`v1.0.5`)** is an open-source Google Docs add-on built with Google Apps Script, the Google Docs API (`v1`), the Google Drive API (`v3`), and the Gemini API (`gemini-3.8-flash` / `gemini-4-argon`). Rather than overwriting a user's manuscript directly, DocuMentor AI leverages the newest [Google Docs API Suggestion & Comment Management capabilities](https://developers.google.com/workspace/docs/api/how-tos/suggestions) (`WriteControl.writeMode = "SUGGEST"`, `addCommentReply`, `insertComment`, `acceptSuggestion`, `rejectSuggestion`, and `deleteComment`) to act as an interactive, multimodal writing and code-review coach directly inside Google Docs.
+**DocuMentor AI (`v1.0.6`)** is an open-source Google Docs add-on built with Google Apps Script, the Google Docs API (`v1`), the Google Drive API (`v3`), and the Gemini API (`gemini-3.8-flash` / `gemini-4-hydrogen` / `gemini-4-argon` / `gemini-4-carbon`). Rather than overwriting a user's manuscript directly, DocuMentor AI leverages the newest [Google Docs API Suggestion & Comment Management capabilities](https://developers.google.com/workspace/docs/api/how-tos/suggestions) (`WriteControl.writeMode = "SUGGEST"`, `addCommentReply`, `insertComment`, `acceptSuggestion`, `rejectSuggestion`, and `deleteComment`) to act as an interactive, multimodal writing and code-review coach directly inside Google Docs.
 
 It holistically analyzes **body text**, **structured tables**, **visual figures/charts** (via multimodal image inspection), **strictly scoped active + resolved review history**, and **organization/project RAG rulebook files stored in Google Drive** (`.md`, `.txt`, code standards, and Google Docs), applies either non-destructive inline edit suggestions or **💡 Hint-Only coaching comments**, attaches educational explanations to every review thread, preserves a compact **📈 Coach Impact & Decision Record (`Accepted` / `Edited` / `Rejected` suggestions)** in `DocumentProperties` so authors can verify whether the AI coach is genuinely improving the draft or generating unnecessary review work, and presents a structured **Writing Coach & Learning Summary** modal dialog with one-click clipboard copy support.
 
-With **`v1.0.5`**, a **single unified codebase** seamlessly supports **two deployment modes** with automatic detection for both the **Gemini API Key** (`GEMINI_API_KEY`) and the **Google Drive RAG Rulebook Folder** (`RAG_FOLDER_ID`):
+With **`v1.0.6`**, a **single unified codebase** seamlessly supports **two deployment modes** with automatic detection for both the **Gemini API Key** (`GEMINI_API_KEY`) and the **Google Drive RAG Rulebook Folder** (`RAG_FOLDER_ID`):
 1. **👤 Individual Mode (`UserProperties`):** Personal, zero-GCP-setup installation inside any Google Doc where you save your own Gemini API key and optional Google Drive RAG Folder ID/URL directly in the sidebar's auto-collapsing **⚙️ Settings Drawer**.
 2. **🏫 School, University, Academic Lab & Organization Mode (`ScriptProperties` + Private Marketplace Add-on):** Zero-code IT Administrator setup where an organization-managed `GEMINI_API_KEY` and optional `RAG_FOLDER_ID` (containing corporate style guides, terminology rules, or engineering coding conventions) are configured in Apps Script **Project Settings (⚙️) > Script Properties** and deployed as a **Private (Domain-Internal) Google Workspace Marketplace Add-on**—enabling students, researchers, and staff to use DocuMentor AI grounded in organizational rules without ever needing Google AI Studio or seeing the API key.
 
@@ -33,7 +33,7 @@ Select the guide that matches your environment:
 | :--- | :--- | :--- | :--- |
 | **👤 Individual / Personal Mode** | Independent writers, researchers, engineers, students, and bloggers setting up DocuMentor AI for their own personal use. | **Sidebar UI (`UserProperties`)**<br/>Paste your own Gemini API key and optional Google Drive RAG Folder ID/URL directly in the sidebar `⚙️` drawer. | **[📖 Open Individual Installation Guide (`INSTALL_INDIVIDUAL.md`)](INSTALL_INDIVIDUAL.md)** |
 | **🏫 School, University & Organization Mode** | K–12 schools, universities, academic research labs, and companies deploying DocuMentor AI across a Google Workspace domain. | **Admin GUI (`ScriptProperties`)**<br/>IT Admin sets `GEMINI_API_KEY` (and optional `RAG_FOLDER_ID`) once in Apps Script Project Settings (⚙️). Users never need AI Studio or an API key. | **[📖 Open School & Organization Deployment Guide (`INSTALL_ORGANIZATION.md`)](INSTALL_ORGANIZATION.md)** |
-| **🧪 End-to-End Feature Testing Suite (`v1.0.5`)** | Anyone who wants to systematically test all `v1.0.5` features step-by-step after installation. | **8 Hands-On Test Scenarios**<br/>Covers Progressive Command Center UI, Multimodal Proofreading, Hint-Only Mode, Resolved History, Strict Selection Scope Boundary, Google Drive RAG Rules, Decision Record, and Code Review. | **[🧪 Open Step-by-Step Testing Guide (`TESTING_GUIDE.md`)](TESTING_GUIDE.md)** |
+| **🧪 End-to-End Feature Testing Suite (`v1.0.6`)** | Anyone who wants to systematically test all `v1.0.6` features step-by-step after installation. | **8 Hands-On Test Scenarios**<br/>Covers Progressive Command Center UI, Multimodal Proofreading, Hint-Only Mode, Resolved History, Strict Selection Scope Boundary, Google Drive RAG Rules, Decision Record, and Code Review. | **[🧪 Open Step-by-Step Testing Guide (`TESTING_GUIDE.md`)](TESTING_GUIDE.md)** |
 
 ---
 
@@ -50,7 +50,7 @@ In recent years, "thought stopping" (cognitive offloading) and the decline of cr
 **DocuMentor AI** fundamentally solves these challenges by leveraging Google Docs' native **Suggestion** and **Comment** features to **visualize the thought process and rationale (`Why`—which part was revised, how, and why)** rather than overwriting the author's text. Furthermore, with **💡 Hint-Only Mode**, the AI withholds the rewritten sentence on the document canvas and anchors only the diagnostic issue and coaching hint as a comment—prompting learners and researchers to actively revise their own prose before checking the reference rewrite.
 
 ### 2. Empowering K–12 Education, Higher Education, Academic Research, Enterprise Teams & Software Engineering Training
-Across schools, universities, academic laboratories, marketing/design teams, and engineering organizations, **DocuMentor AI (`v1.0.5`)** addresses critical pedagogical, scholarly, and developer workflows:
+Across schools, universities, academic laboratories, marketing/design teams, and engineering organizations, **DocuMentor AI (`v1.0.6`)** addresses critical pedagogical, scholarly, and developer workflows:
 - **Context-Aware / Enterprise-Grounded RAG via Google Drive (`RAG_FOLDER_ID`):** Writing and coding standards vary across organizations, labs, and classrooms. By linking a Google Drive folder containing text files (`.md`, `.txt`, `.json`, `.yaml`, source code guidelines) or Google Docs (`application/vnd.google-apps.document`), DocuMentor AI automatically fetches those documents in parallel, uploads them to the **Gemini File API** as authoritative RAG rulebooks (`RAG_RULE`), and anchors its inline edits, coaching hints, and learning summaries strictly in your team's internal guidelines (such as a corporate tone-of-voice guide, forbidden terminology list, `design.md`, or lab submission checklist) rather than generic web conventions.
 - **K–12 & University Classrooms (Safe, Zero-Key Student Access):** In **Google Workspace for Education**, access to Google AI Studio is often restricted for student Organizational Units (OUs). By allowing IT admins to configure a single school-managed API key (and optional course rubric folder `RAG_FOLDER_ID`) in `ScriptProperties` and publish DocuMentor AI as a **Private (Domain-Only) Marketplace Add-on**, students can practice active-recall writing on any Google Classroom assignment with zero exposure to the underlying API key.
 - **Academic Manuscripts, Theses & Lab Reports (Cross-Modal Consistency):** Scientific papers, grant proposals, and dissertations depend on strict alignment between narrative claims, statistical tables (`TABLE_1`, etc.), and figures/charts (`VISUAL_1`, etc.). DocuMentor AI visually inspects embedded figures via the **Gemini File API**, checks whether baselines, units, and axis labels match the prose and tables, and anchors constructive peer-review comments directly onto figures and tables.
@@ -86,34 +86,43 @@ At the same time, because I wanted to verify the real-world capabilities of **Ge
 6. **Strict Fail-Closed Selection Scope Boundary (Manuscript + Active & Resolved History)**
    Authors can proofread the **entire active tab** (default) or toggle **🎯 Selection Only** to extract and upload strictly the highlighted phrase, paragraph, table cell, table, or figure (`doc.getSelection()`). When **🎯 Selection Only** is enabled, DocuMentor AI enforces the exact same coordinate and fail-closed quote scope boundary on **active suggestions, open comments, and resolved review history** (`filterReviewsBySelectionScope_` + Step 2 Defense-in-Depth guard), guaranteeing that out-of-selection review history never leaves the document.
 7. **Pedagogical Writing Coach & Sleek "Progressive Command Center" Sidebar UI**
-   Designed specifically for Google Docs' 300px sidebar width, the `v1.0.5` **Progressive Command Center** UI features a 1-line **Status Bar** (`⚡ 3.8 Flash` / `🧠 4 Argon`, `🔑 API` badge, `📚 RAG` badge, and auto-collapsing `⚙️` drawer), a **2-Tab Visual Coaching Mode Switcher**, **2-Column Compact Scope Pills** (`🎯 Selection Only` & `📜 Resolved History`) with a live scope summary bar, a **Collapsible Custom Prompt & Draft Accordion**, a **3-Column Quick Canvas Cleanup Toolbar** (`✅ Accept` | `🧹 Reject` | `🗑️ Comments`), a live **📈 Coach Impact & Decision Record** widget with a **↺ Reset** button, and a **4-Segment Live Pipeline Progress Bar**.
+   Designed specifically for Google Docs' 300px sidebar width, the `v1.0.6` **Progressive Command Center** UI features a 1-line **Status Bar** (`⚡ 3.8 Flash` / `🚀 4 Hydrogen` / `🧠 4 Argon` / `💎 4 Carbon` model selector, `🔑 API` badge, `📚 RAG` badge, and auto-collapsing `⚙️` drawer), a **2-Tab Visual Coaching Mode Switcher**, **2-Column Compact Scope Pills** (`🎯 Selection Only` & `📜 Resolved History`) with a live scope summary bar, a **Collapsible Custom Prompt & Draft Accordion**, a **3-Column Quick Canvas Cleanup Toolbar** (`✅ Accept` | `🧹 Reject` | `🗑️ Comments`), a live **📈 Coach Impact & Decision Record** widget with a **↺ Reset** button, and a **4-Segment Live Pipeline Progress Bar**.
 
-### Model Selection Guide: `Gemini 3.8 Flash` vs. `Gemini 4 Argon`
+### Model Selection Guide: `Gemini 3.8 Flash` • `Gemini 4 Hydrogen` • `Gemini 4 Argon` • `Gemini 4 Carbon`
 
-In the sidebar's top **Status Bar**, you can switch between **`⚡ 3.8 Flash (Fast)`** and **`🧠 4 Argon (Deep)`** at any time. Use the following decision matrix to select the optimal model for your proofreading or code review task:
+In the sidebar's top **Status Bar**, you can switch seamlessly among four Gemini models at any time:
 
-| Scenario / Use Case | Domain | Recommended Model | Why & Key Selection Criteria |
+| Model Name & API ID | Sidebar Label (`EN` / `JA`) | Model Tier & Core Strength | Primary Role in DocuMentor AI |
 | :--- | :--- | :--- | :--- |
-| **1. Typo, Spelling & Grammar Check** | ✍️ Prose | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | Fixing typos, spelling mistakes, and clear grammatical errors relies primarily on pattern recognition—making Flash's high speed and low token cost the optimal choice. |
-| **2. Routine Code Refactoring** | 💻 Code | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | Standardizing naming conventions, adding comments/docstrings, and rewriting simple functions without complex algorithmic changes complete almost instantaneously with Flash. |
-| **3. Rapid Iterative Drafting & Interactive Checks** | ✍️ Prose / 💻 Code | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | When actively drafting or iterating in the editor and wanting fast, rhythmic feedback or brainstorming without breaking your creative flow, Flash's ultra-low latency provides a stress-free experience. |
-| **4. First-Pass Triage of Large Documents or Long Scripts** | ✍️ Prose / 💻 Code | **⚡ `Gemini 3.8 Flash`**<br/>*(Fast & Balanced)* | Ideal for cost-effectively screening long manuscripts or large scripts to surface broad errors and recurring issues in a single initial pass. |
-| **5. Logical Consistency in Academic Papers, Contracts & Multimodal Figures** | ✍️ Prose & 🖼️ Visuals | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Best when deep contextual reasoning is required to detect contradictions across claims, flawed logical progressions, subtle loopholes in legal/contractual phrasing, or cross-modal mismatches between body text, tables, and figures. |
-| **6. Complex Algorithm & Data Structure Review** | 💻 Code | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Shines in code reviews that require deep analytical thinking—such as optimizing time and space complexity, designing advanced data structures, and verifying subtle edge-case bugs. |
-| **7. Security Auditing & Vulnerability Detection** | 💻 Code | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Ideal for deeply tracing execution paths to uncover concurrency bugs (race conditions), injection vulnerabilities, credential exposure, or subtle security flaws hidden in source code. |
-| **8. Nuanced Tone, Style & Enterprise RAG Compliance** | ✍️ Prose / 📚 RAG | **🧠 `Gemini 4 Argon`**<br/>*(High Precision)* | Powerful for cross-checking complex manuscripts or codebases against multi-file Google Drive RAG rulebooks, style guides, and domain-specific compliance rules. |
+| **⚡ Gemini 3.8 Flash**<br/>(`gemini-3.8-flash`) | `⚡ 3.8 Flash (Fast)`<br/>`⚡ 3.8 Flash (高速)` | **Default Fast & Lightweight** | Ultra-fast, low-cost daily proofreading, spelling/grammar checks, and quick interactive iterations. |
+| **🚀 Gemini 4 Hydrogen**<br/>(`gemini-4-hydrogen`) | `🚀 4 Hydrogen (Fast+)`<br/>`🚀 4 Hydrogen (次世代高速)` | **Next-Gen Gemini 4 Workhorse** | High-speed, cost-efficient Gemini 4 execution engine combining rapid response times with reduced hallucinations and sharper code/prose precision. |
+| **🧠 Gemini 4 Argon**<br/>(`gemini-4-argon`) | `🧠 4 Argon (Deep)`<br/>`🧠 4 Argon (高精度)` | **Deep Multimodal Reasoning** | High-precision structural editing, cross-modal verification across text/tables/figures, and multi-file Google Drive RAG compliance. |
+| **💎 Gemini 4 Carbon**<br/>(`gemini-4-carbon`) | `💎 4 Carbon (Frontier)`<br/>`💎 4 Carbon (最上位・深層推論)` | **Flagship Frontier Reasoning** | Top-of-the-line long-horizon reasoning for mission-critical academic manuscripts, legal contracts, complex system architectures, and deep security/concurrency audits. |
 
-> **💡 Practical Two-Pass Workflow Tip:** For long academic papers or complex scripts, start with **`gemini-3.8-flash`** for a fast, low-cost **First-Pass Triage** (cleaning up typos, basic grammar, and naming conventions), and then switch to **`gemini-4-argon`** for your **Deep Second Pass** (verifying thesis/contract logic, cross-checking `Table 1` and `Figure 1`, enforcing Google Drive RAG rulebooks, or auditing algorithm complexity and security vulnerabilities).
+Use the following task-by-task decision matrix to choose the optimal model for your proofreading or code review workflow:
+
+| Scenario / Use Case | Domain | Recommended Model(s) | Why & Key Selection Criteria |
+| :--- | :--- | :--- | :--- |
+| **1. Typo, Spelling & Grammar Check** | ✍️ Prose | **⚡ `Gemini 3.8 Flash`** / **🚀 `Gemini 4 Hydrogen`** | Fixing typos, spelling mistakes, and clear grammatical errors relies primarily on fast pattern recognition—making `3.8 Flash` or `4 Hydrogen` ideal for speed and cost efficiency. |
+| **2. Routine Code Refactoring & Idiomatic Cleanup** | 💻 Code | **🚀 `Gemini 4 Hydrogen`** / **⚡ `Gemini 3.8 Flash`** | Standardizing naming conventions, modernizing syntax, adding docstrings, and refactoring straightforward functions complete rapidly with `4 Hydrogen` (with strong Gemini 4 code accuracy) or `3.8 Flash`. |
+| **3. Rapid Iterative Drafting & Interactive Checks** | ✍️ Prose / 💻 Code | **⚡ `Gemini 3.8 Flash`** / **🚀 `Gemini 4 Hydrogen`** | When actively drafting in the editor and wanting rhythmic, low-latency coaching hints without breaking your creative flow, `3.8 Flash` and `4 Hydrogen` deliver a responsive experience. |
+| **4. First-Pass Triage of Large Documents or Long Scripts** | ✍️ Prose / 💻 Code | **🚀 `Gemini 4 Hydrogen`** / **⚡ `Gemini 3.8 Flash`** | Ideal for cost-effectively screening long manuscripts or multi-hundred-line scripts to surface broad errors, hallucinations, and recurring habits in an initial pass. |
+| **5. Logical Consistency Across Academic Papers & Multimodal Figures** | ✍️ Prose & 🖼️ Visuals | **🧠 `Gemini 4 Argon`** / **💎 `Gemini 4 Carbon`** | Best when deep contextual reasoning is required to detect contradictions across claims, subtle gaps in arguments, or cross-modal mismatches between body text, `TABLE_1`, and `VISUAL_1`. |
+| **6. Complex Algorithm, System Design & Complexity Optimization** | 💻 Code | **💎 `Gemini 4 Carbon`** / **🧠 `Gemini 4 Argon`** | Shines in reviews requiring deep long-horizon thinking—optimizing time/space complexity, auditing architectural invariants, and catching subtle edge-case regressions. |
+| **7. Mission-Critical Security Auditing & Contract Verification** | 💻 Code / ⚖️ Legal | **💎 `Gemini 4 Carbon`** | Ideal for flagship frontier analysis: tracing subtle race conditions, injection/credential vulnerabilities, or legal/contractual loopholes where maximum reasoning depth matters most. |
+| **8. Nuanced Tone, Psychological Impact & Enterprise RAG Compliance** | ✍️ Prose / 📚 RAG | **🧠 `Gemini 4 Argon`** / **💎 `Gemini 4 Carbon`** | Powerful for cross-checking complex manuscripts or scripts against multi-file Google Drive RAG rulebooks, organizational style guides, and audience-tailored tone requirements. |
+
+> **💡 Practical Multi-Model Orchestration Tip:** Mirroring modern multi-model agentic workflows, run a fast, cost-effective **First-Pass Execution Triage** with **`gemini-4-hydrogen`** (or **`gemini-3.8-flash`**) to clean up grammar, naming conventions, and surface bugs, and then switch to **`gemini-4-argon`** or **`gemini-4-carbon`** for your **Deep Frontier Second Pass** (verifying thesis/contract logic, cross-checking `Table 1` and `Figure 1`, enforcing Google Drive RAG rulebooks, or auditing algorithm complexity and security vulnerabilities).
 
 ---
 
 ## Architecture & Workflow
 
-The following Mermaid diagram illustrates the end-to-end architecture and execution workflow of **DocuMentor AI (`v1.0.5`)**:
+The following Mermaid diagram illustrates the end-to-end architecture and execution workflow of **DocuMentor AI (`v1.0.6`)**:
 
 ```mermaid
 flowchart TD
-    subgraph DeployMode ["🔐 Dual Deployment: API Key & Google Drive RAG Resolution (v1.0.5)"]
+    subgraph DeployMode ["🔐 Dual Deployment: API Key & Google Drive RAG Resolution (v1.0.6)"]
         direction LR
         AdminMode["🏫 <b>School / Org / Lab Mode</b><br/>Private Marketplace Add-on<br/><code>GEMINI_API_KEY</code> & <code>RAG_FOLDER_ID</code><br/>in <code>ScriptProperties</code> (Locked)"]
         IndivMode["👤 <b>Individual Mode</b><br/>Container-Bound Script<br/>API Key & RAG Folder in<br/><code>UserProperties</code> (Sidebar ⚙️ Drawer)"]
@@ -129,7 +138,7 @@ flowchart TD
     ScopeSel --> Step1
     DriveRAG -. "Parallel Export & Fetch" .-> Step2
 
-    subgraph Pipeline ["🚀 4-Stage Proofreading, RAG Grounding & Coaching Pipeline (v1.0.5)"]
+    subgraph Pipeline ["🚀 4-Stage Proofreading, RAG Grounding & Coaching Pipeline (v1.0.6)"]
         direction TB
         Step1["<b>STEP 1: Fetch Document, Scoped History, RAG & Decision Record</b><br/>• Call <code>documents.get</code> with <code>includeTabsContent=true</code>,<br/>  <code>suggestionsViewMode=SUGGESTIONS_INLINE</code>,<br/>  <code>commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED</code><br/>• Extract Settled Text Blocks, Tables (Markdown), Figures/Charts,<br/>  and Strictly Scoped Active/Resolved Review History<br/>• Reconcile <code>DocumentProperties</code> Coach Decision Record<br/>  (Accepted / Edited / Rejected / Expired / Pending)"]
 
@@ -154,10 +163,10 @@ flowchart TD
 Both installation modes use the **exact same three source files** in [`src/`](src/) ([`src/appsscript.json`](src/appsscript.json), [`src/code.js`](src/code.js), and [`src/index.html`](src/index.html)):
 
 > ⚠️ **Important for Users Upgrading from `v1.0.3` or Earlier (`appsscript.json` Update & Re-Authorization Required):**
-> Starting in **`v1.0.4`** (and continuing in **`v1.0.5`**), [`src/appsscript.json`](src/appsscript.json) includes the **`https://www.googleapis.com/auth/drive.readonly`** OAuth scope and enables the **`Google Drive API (v3)`** advanced service for Google Drive RAG rulebook grounding.
+> Starting in **`v1.0.4`** (and continuing in **`v1.0.6`**), [`src/appsscript.json`](src/appsscript.json) includes the **`https://www.googleapis.com/auth/drive.readonly`** OAuth scope and enables the **`Google Drive API (v3)`** advanced service for Google Drive RAG rulebook grounding.
 > When upgrading an existing Apps Script project from `v1.0.3` or earlier:
 > 1. Be sure to replace **all three files**—including **`appsscript.json`** (not just `Code.gs` and `index.html`)—and save the project.
-> 2. **Re-authorize the script:** Reload your Google Doc and click **`✦ DocuMentor AI` > `Open Dashboard`** (or select `onOpen` in the Apps Script editor toolbar and click **▷ Run**), then complete the Google OAuth consent prompt to grant the new read-only Google Drive permission. (For Organization / Marketplace deployments, also enable **`Google Drive API`** in the linked GCP project and add `https://www.googleapis.com/auth/drive.readonly` to the Marketplace SDK OAuth Scopes list.) *(Users upgrading from `v1.0.4` to `v1.0.5` only need to update `Code.gs` and `index.html`; no new OAuth scopes are required.)*
+> 2. **Re-authorize the script:** Reload your Google Doc and click **`✦ DocuMentor AI` > `Open Dashboard`** (or select `onOpen` in the Apps Script editor toolbar and click **▷ Run**), then complete the Google OAuth consent prompt to grant the new read-only Google Drive permission. (For Organization / Marketplace deployments, also enable **`Google Drive API`** in the linked GCP project and add `https://www.googleapis.com/auth/drive.readonly` to the Marketplace SDK OAuth Scopes list.) *(Users upgrading from `v1.0.4` or `v1.0.5` to `v1.0.6` only need to update `Code.gs` and `index.html`; no new OAuth scopes are required.)*
 
 ### Option A: 👤 For Individual Users (Personal Setup)
 1. Open a Google Doc and click **Extensions** > **Apps Script**.
@@ -176,7 +185,7 @@ Both installation modes use the **exact same three source files** in [`src/`](sr
 
 ## Testing with the Sample Manuscript (`sample/`) & Step-by-Step Testing Guide
 
-> 🧪 **Want to test every feature of `v1.0.5` step-by-step?**
+> 🧪 **Want to test every feature of `v1.0.6` step-by-step?**
 > See the dedicated **[End-to-End Verification & Feature Testing Guide (`TESTING_GUIDE.md`)](TESTING_GUIDE.md)** for **8 complete, copy-paste-ready test scenarios** covering the Progressive Command Center UI, Blank Document Generation, Full-Tab Multimodal Proofreading, Hint-Only Mode, Resolved Review History, the **Strict Selection Scope Boundary (DEV.to Regression Test)**, **Google Drive RAG Rulebook Grounding**, and Multi-Language Code Review.
 
 A ready-to-use multimodal test manuscript is also provided in the [`sample/`](sample/) directory so you can immediately evaluate **DocuMentor AI** across body text, a structured table, and an embedded figure/chart:
@@ -201,7 +210,7 @@ A ready-to-use multimodal test manuscript is also provided in the [`sample/`](sa
 When you run **DocuMentor AI** on the [`sample/`](sample/) manuscript ([`sample/sample_article.md`](sample/sample_article.md) + [`sample/sample_figure.png`](sample/sample_figure.png)), the **🎓 Writing Coach & Learning Summary** dialog automatically appears upon completion with a one-click **📋 Copy to Clipboard** button, providing the following structured pedagogical feedback:
 
 ```text
-[🎓 Writing Coach & Learning Summary (DocuMentor AI v1.0.5)]
+[🎓 Writing Coach & Learning Summary (DocuMentor AI v1.0.6)]
 
 ■ 📋 Overall Manuscript Evaluation
 This introductory guide to Google Apps Script (GAS) clearly communicates the core value proposition of the platform, including its ease of setup, integration with Google Workspace, and connection to the Gemini AI API. However, the body text currently contains several grammatical errors, redundant modifiers, and overly conversational phrases (e.g., "most biggest," "many various," "softwares"). Furthermore, while Figure 1 and Table 1 present compelling time-saving metrics (reducing manual work from 120 minutes to 30 and 5 minutes), the body text never explicitly references the table or figure, nor does Table 1 include the 120-minute manual baseline shown in the chart. Aligning your text, table, and visual data while tightening your prose will significantly elevate the professionalism of this document.
@@ -263,7 +272,7 @@ Review this Google Apps Script code for bugs, GAS API misuse, security risks, an
 DocuMentor AI will apply line-by-line inline code suggestions (`WriteMode.SUGGEST`) across the script (so clicking **✅ Accept** produces a 100% syntactically valid, runnable V8 script), attach educational code-review replies (`addCommentReply`) explaining each bug and best practice, and generate the following **🎓 Writing Coach & Learning Summary**:
 
 ```text
-[🎓 Writing Coach & Learning Summary (DocuMentor AI v1.0.5)]
+[🎓 Writing Coach & Learning Summary (DocuMentor AI v1.0.6)]
 
 ■ 📋 Overall Manuscript Evaluation
 This Google Apps Script snippet provides a clear high-level workflow for reading spreadsheet tasks, summarizing them with the Gemini API, and sending an email report. However, it contains several critical runtime bugs, a major security vulnerability (hardcoded API key), incorrect Google Apps Script API methods (such as using `getValue()` for a multi-cell range and improperly configuring `UrlFetchApp.fetch` for JSON), and outdated ES5 `var` declarations. Applying the line-by-line fixes below will make the script secure, functional, and compliant with modern V8 JavaScript standards.
@@ -287,7 +296,7 @@ DocuMentorAI/
 ├── README.md                                       # Main documentation, architecture, and mode selector
 ├── INSTALL_INDIVIDUAL.md                           # Step-by-step installation guide for Individual users
 ├── INSTALL_ORGANIZATION.md                         # Step-by-step deployment guide for Schools, Labs & Organizations
-├── TESTING_GUIDE.md                                # 8 step-by-step test scenarios covering all v1.0.5 features
+├── TESTING_GUIDE.md                                # 8 step-by-step test scenarios covering all v1.0.6 features
 ├── images/
 │   └── documentor_ai_overview_infographic.png      # Visual architecture, RAG grounding & dual-deployment overview infographic
 ├── sample/
@@ -302,6 +311,12 @@ DocuMentorAI/
 ---
 
 ## Version History
+
+- **v1.0.6**
+  - Added support for **Gemini 4 Hydrogen (`gemini-4-hydrogen`)** and **Gemini 4 Carbon (`gemini-4-carbon`)** alongside `gemini-3.8-flash` and `gemini-4-argon`:
+    - **4-Model Selector in Sidebar Status Bar (`EN` & `JA`)**: Users can now choose among **`⚡ 3.8 Flash (Fast)`** (`gemini-3.8-flash`), **`🚀 4 Hydrogen (Fast+)`** (`gemini-4-hydrogen`, next-generation high-speed Gemini 4 execution model), **`🧠 4 Argon (Deep)`** (`gemini-4-argon`, deep multimodal reasoning), and **`💎 4 Carbon (Frontier)`** (`gemini-4-carbon`, flagship frontier model for long-horizon reasoning, complex architecture/algorithm reviews, and mission-critical document/security audits), persisted in `UserProperties` (`GEMINI_SELECTED_MODEL`).
+    - **Gemini 4 API Generation & Response Hardening (`src/code.js`)**: Added `buildGenerationConfig_()` to automatically omit deprecated legacy `temperature` sampling fields on `gemini-4-*` requests while preserving structured `responseMimeType` / `responseSchema` enforcement, and added `extractTextFromGeminiResponse_()` in `callGeminiApiRaw_()` to cleanly skip internal `thought: true` reasoning parts when parsing `generateContent` responses.
+    - **Updated Documentation & 4-Model Selection Matrix (`README.md` & Guides)**: Expanded the Model Selection Guide to cover all four selectable models (`gemini-3.8-flash`, `gemini-4-hydrogen`, `gemini-4-argon`, and `gemini-4-carbon`) and multi-model orchestration workflows.
 
 - **v1.0.5**
   - Added **📈 Coach Impact & Decision Record (`DocumentProperties` + 4-State Reconciliation & Provenance Isolation)**:

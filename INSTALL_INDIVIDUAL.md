@@ -6,7 +6,7 @@
 
 ## Overview: Personal Container-Bound Setup (`UserProperties`)
 
-This guide walks **individual users** (independent writers, researchers, engineers, bloggers, and learners) through installing **DocuMentor AI (`v1.0.4`)** directly inside a Google Document using a container-bound Google Apps Script project.
+This guide walks **individual users** (independent writers, researchers, engineers, bloggers, and learners) through installing **DocuMentor AI (`v1.0.6`)** directly inside a Google Document using a container-bound Google Apps Script project.
 
 In this mode:
 - **Zero Cloud Console Setup Required:** You do not need to create or configure a standard Google Cloud Platform (GCP) project or publish an add-on.
@@ -101,9 +101,11 @@ In the Apps Script editor, configure the following three files from the [`src/`]
 2. Paste your **Gemini API Key** into the password input box (`AIzaSy...`) and click **Save**.
 3. Your key is stored securely in `PropertiesService.getUserProperties()` (accessible only to your Google account). The box will change to **`🔒 API Key Configured (Saved)`** with a **Reset** link in case you ever want to replace your key.
 4. *(Optional)* Under **`📚 Google Drive RAG Rulebook Folder or File (ID / URL)`**, paste **either a Google Drive Folder ID/URL or a Single Rulebook File ID/URL** (`.md`, `.txt`, script, or Google Doc) and click **Link** to ground proofreading and code reviews in your custom rules.
-5. Select your preferred **Gemini Model**:
+5. Select your preferred **Gemini Model** in the top Status Bar:
    - **`gemini-3.8-flash (Default / Fast)`:** Ideal for fast daily proofreading and quick iterative checks.
-   - **`gemini-4-argon (High Precision)`:** Ideal for deep structural, academic, and cross-modal analysis across text, tables, and charts.
+   - **`gemini-4-hydrogen (Next-Gen Fast+)`:** High-speed, cost-efficient Gemini 4 workhorse model for rapid prose editing and routine code refactoring.
+   - **`gemini-4-argon (Deep Reasoning)`:** Ideal for deep structural, academic, and cross-modal analysis across text, tables, and charts.
+   - **`gemini-4-carbon (Flagship Frontier)`:** Top-tier long-horizon reasoning for complex system architectures, security/concurrency audits, and mission-critical papers or contracts.
 6. Toggle the UI and AI output language between **`EN`** (100% English) and **`JA`** (100% Japanese) at the top-right corner of the sidebar header.
 
 ### 2. Choose Your Proofreading Scope & Coaching Modes (`✍️ Proofreading Scope & Controls`)

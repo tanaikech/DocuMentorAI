@@ -1,12 +1,12 @@
 /**
  * Application Name: DocuMentor AI
  * Description: AI-Powered Proofreading & Multimodal Suggestion Coach for Google Docs
- * Version: v1.0.5
+ * Version: v1.0.6
  * Author: Kanshi Tanaike
  */
 
 const APP_NAME = 'DocuMentor AI';
-const APP_VERSION = 'v1.0.5';
+const APP_VERSION = 'v1.0.6';
 const APP_AUTHOR = 'Kanshi Tanaike';
 const APP_REPO_URL = 'https://github.com/tanaikech/DocuMentorAI';
 
@@ -28,7 +28,12 @@ const DECISION_STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DECISION_SAFE_JSON_BYTES = 7500;
 
 const DEFAULT_MODEL = 'gemini-3.8-flash';
-const ALLOWED_MODELS = ['gemini-3.8-flash', 'gemini-4-argon'];
+const ALLOWED_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-4-hydrogen',
+  'gemini-4-argon',
+  'gemini-4-carbon'
+];
 const DEFAULT_LANG = 'en';
 
 /**
@@ -3422,9 +3427,12 @@ function generateInitialArticle(customPrompt, modelName, lang) {
 
     const payload = {
       systemInstruction: { parts: [{ text: systemInstruction }] },
-      contents: [{ role: 'user', parts: userParts }],
-      generationConfig: { temperature: 0.7 }
+      contents: [{ role: 'user', parts: userParts }]
     };
+    const genConfig = buildGenerationConfig_(model, { temperature: 0.7 });
+    if (Object.keys(genConfig).length > 0) {
+      payload.generationConfig = genConfig;
+    }
 
     generatedText = callGeminiApiRaw_(model, apiKey, payload).trim();
   } finally {
@@ -3671,11 +3679,11 @@ function executeMultimodalJsonGeneration_(model, apiKey, promptData, visualEleme
     const payload = {
       systemInstruction: { parts: [{ text: promptData.systemPrompt }] },
       contents: [{ role: 'user', parts: userParts }],
-      generationConfig: {
+      generationConfig: buildGenerationConfig_(model, {
         temperature: 0.3,
         responseMimeType: 'application/json',
         responseSchema: promptData.responseSchema
-      }
+      })
     };
 
     const rawJsonText = callGeminiApiRaw_(model, apiKey, payload);
@@ -5289,6 +5297,59 @@ function getRequiredApiKey_(isJa) {
 }
 
 /**
+ * Builds a model-compatible `generationConfig` object for the Gemini API.
+ * Sampling parameters such as `temperature` are omitted for `gemini-4-*` models
+ * (`gemini-4-hydrogen`, `gemini-4-argon`, `gemini-4-carbon`), where legacy sampling
+ * controls are deprecated/ignored in favor of native reasoning and `responseSchema`.
+ *
+ * @param {string} model Selected Gemini model identifier.
+ * @param {Object=} options Optional generation config fields ({ temperature, responseMimeType, responseSchema }).
+ * @return {Object} Clean `generationConfig` object.
+ */
+function buildGenerationConfig_(model, options) {
+  const opts = options || {};
+  const isGemini4Series = /^gemini-4(?:-|$)/i.test(String(model || '').trim());
+  const config = {};
+
+  if (!isGemini4Series && typeof opts.temperature === 'number') {
+    config.temperature = opts.temperature;
+  }
+  if (opts.responseMimeType) {
+    config.responseMimeType = opts.responseMimeType;
+  }
+  if (opts.responseSchema) {
+    config.responseSchema = opts.responseSchema;
+  }
+  return config;
+}
+
+/**
+ * Extracts the primary output text from a Gemini `generateContent` JSON response,
+ * skipping internal `thought: true` reasoning parts when present.
+ *
+ * @param {Object} json Parsed JSON response from `generateContent`.
+ * @return {string} Extracted text output.
+ */
+function extractTextFromGeminiResponse_(json) {
+  const candidate = json && Array.isArray(json.candidates) ? json.candidates[0] : null;
+  const parts = candidate && candidate.content && Array.isArray(candidate.content.parts)
+    ? candidate.content.parts
+    : [];
+
+  const nonThoughtTextParts = parts.filter(p => p && !p.thought && typeof p.text === 'string');
+  if (nonThoughtTextParts.length > 0) {
+    return nonThoughtTextParts.map(p => p.text).join('');
+  }
+
+  const fallbackPart = parts.find(p => p && typeof p.text === 'string');
+  if (fallbackPart) {
+    return fallbackPart.text;
+  }
+
+  throw new Error('No valid text response received from Gemini API.');
+}
+
+/**
  * Calls the Gemini generateContent REST endpoint.
  */
 function callGeminiApiRaw_(model, apiKey, payload) {
@@ -5308,14 +5369,7 @@ function callGeminiApiRaw_(model, apiKey, payload) {
   }
 
   const json = JSON.parse(body);
-  const candidate = json.candidates && json.candidates[0];
-  const part = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
-
-  if (!part || typeof part.text !== 'string') {
-    throw new Error('No valid text response received from Gemini API.');
-  }
-
-  return part.text;
+  return extractTextFromGeminiResponse_(json);
 }
 
 /**

@@ -922,7 +922,7 @@
       <div class="brand-icon">✦</div>
       <div>
         <span class="brand-title">DocuMentor AI <span class="brand-info-dot">ⓘ</span></span>
-        <span id="brandSub" class="brand-sub">v1.0.5 • AI Proofreading &amp; RAG Coach</span>
+        <span id="brandSub" class="brand-sub">v1.0.6 • AI Proofreading &amp; RAG Coach</span>
       </div>
     </div>
     <div class="header-right">
@@ -938,7 +938,9 @@
     <div class="status-bar-top">
       <select id="modelSelect" class="status-model-select" onchange="handleModelChange()" title="Gemini Model">
         <option id="optModelFlash" value="gemini-3.8-flash" selected>⚡ 3.8 Flash (Fast)</option>
+        <option id="optModelHydrogen" value="gemini-4-hydrogen">🚀 4 Hydrogen (Fast+)</option>
         <option id="optModelArgon" value="gemini-4-argon">🧠 4 Argon (Deep)</option>
+        <option id="optModelCarbon" value="gemini-4-carbon">💎 4 Carbon (Frontier)</option>
       </select>
       <button id="btnToggleSettings" class="btn-gear" onclick="toggleSettingsDrawer()" title="Engine, API Key &amp; Google Drive RAG Settings">⚙️</button>
     </div>
@@ -1209,7 +1211,7 @@
 
   <!-- Footer -->
   <div class="app-footer">
-    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.5 • Created by Kanshi Tanaike
+    <span class="footer-brand-link" onclick="openAboutDialog()">DocuMentor AI</span> v1.0.6 • Created by Kanshi Tanaike
   </div>
 
   <script>
@@ -1226,7 +1228,7 @@
 
     const I18N = {
       en: {
-        brandSub: 'v1.0.5 • AI Proofreading & RAG Coach',
+        brandSub: 'v1.0.6 • AI Proofreading & RAG Coach',
         brandTooltip: 'Click to view Developer, GitHub Repository & Version info',
         settingsTitle: '⚙️ Engine, API Key & Drive RAG',
         closeSettings: 'Close ✕',
@@ -1252,7 +1254,9 @@
         statusRagAdmin: count => count > 0 ? `📚 RAG: Admin (${count})` : '📚 RAG: Admin',
         modelLabel: 'Gemini Model',
         modelFlash: '⚡ 3.8 Flash (Fast)',
+        modelHydrogen: '🚀 4 Hydrogen (Fast+)',
         modelArgon: '🧠 4 Argon (Deep)',
+        modelCarbon: '💎 4 Carbon (Frontier)',
         promptSection: '✍️ Coaching Mode & Scope Controls',
         modeSuggest: '✍️ Suggest & Coach',
         modeHint: '💡 Hint-Only Mode',
@@ -1388,7 +1392,7 @@
         }
       },
       ja: {
-        brandSub: 'v1.0.5 • AI推敲＆RAG学習コーチ',
+        brandSub: 'v1.0.6 • AI推敲＆RAG学習コーチ',
         brandTooltip: 'クリックして開発者・GitHubリポジトリ・バージョン情報を表示',
         settingsTitle: '⚙️ AIエンジン・APIキー・Drive RAG設定',
         closeSettings: '閉じる ✕',
@@ -1414,7 +1418,9 @@
         statusRagAdmin: count => count > 0 ? `📚 RAG: 管理者(${count})` : '📚 RAG: 管理者設定',
         modelLabel: '使用モデル',
         modelFlash: '⚡ 3.8 Flash (高速)',
+        modelHydrogen: '🚀 4 Hydrogen (次世代高速)',
         modelArgon: '🧠 4 Argon (高精度)',
+        modelCarbon: '💎 4 Carbon (最上位・深層推論)',
         promptSection: '✍️ コーチングモード & 推敲範囲',
         modeSuggest: '✍️ 提案＆コーチ',
         modeHint: '💡 ヒントのみ表示',
@@ -1566,7 +1572,10 @@
           document.getElementById('selectionOnlyToggle').checked = Boolean(cfg.selectionOnly);
           document.getElementById('hintOnlyToggle').checked = Boolean(cfg.hintOnly);
           document.getElementById('includeResolvedToggle').checked = Boolean(cfg.includeResolved);
-          document.getElementById('modelSelect').value = cfg.selectedModel || 'gemini-3.8-flash';
+          const allowedClientModels = ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-argon', 'gemini-4-carbon'];
+          document.getElementById('modelSelect').value = allowedClientModels.includes(cfg.selectedModel)
+            ? cfg.selectedModel
+            : 'gemini-3.8-flash';
           applyLanguageTexts();
           resetAllSteps();
           updateApiKeyUi(currentHasApiKey, currentApiKeySource);
@@ -1669,7 +1678,9 @@
       document.getElementById('lblRagHint').textContent = t.ragHint;
       document.getElementById('lblModelSelect').textContent = t.modelLabel;
       document.getElementById('optModelFlash').textContent = t.modelFlash;
+      document.getElementById('optModelHydrogen').textContent = t.modelHydrogen;
       document.getElementById('optModelArgon').textContent = t.modelArgon;
+      document.getElementById('optModelCarbon').textContent = t.modelCarbon;
 
       document.getElementById('lblPromptSection').textContent = t.promptSection;
       document.getElementById('lblModeSuggest').textContent = t.modeSuggest;
